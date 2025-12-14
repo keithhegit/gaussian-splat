@@ -1,12 +1,13 @@
 import * as THREE from 'three';
-import { SpzLoader } from '@mkkellogg/gaussian-splats-3d';
+import { DropInViewer } from '@mkkellogg/gaussian-splats-3d';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 export class PortalSystem {
     public group: THREE.Group;
     private mask: THREE.Mesh;
     private frame: THREE.Object3D | null = null;
-    private splatMesh: THREE.Object3D | null = null;
+    private viewer: DropInViewer | null = null;
+    private splatMesh: THREE.Mesh | null = null;
     
     // State tracking
     private isInside: boolean = false;
@@ -70,25 +71,32 @@ export class PortalSystem {
         console.log(`[PortalSystem] Loading Splat from: ${splatUrl}`);
         console.log(`[PortalSystem] Loading Door from: ${doorUrl}`);
 
-        // 2. Load Splat (SPZ)
-        const loader = new SpzLoader();
-        loader.load(splatUrl, (splat: any) => {
-            this.splatMesh = splat;
-            
-            // Critical Hooks (must execute)
-            this.splatMesh!.frustumCulled = false;
-            this.splatMesh!.renderOrder = 1;
-            
-            // Adjust Splat rotation/position
-            // Spec says usually -90 deg on X
-            this.splatMesh!.rotation.x = -Math.PI / 2;
-            this.splatMesh!.position.set(0, 0, 0); // Ensure it's at origin of group
-
-            // Initial Stencil Config (Outside state)
-            this.setSplatStencil(true);
-
-            this.group.add(this.splatMesh!);
+        // 2. Load Splat (Using DropInViewer)
+        this.viewer = new DropInViewer({
+            'sharedMemoryForWorkers': false // Disable shared memory for broader compatibility
         });
+        
+        // Adjust Viewer rotation/position to match spec
+        this.viewer.rotation.x = -Math.PI / 2;
+        this.viewer.position.set(0, 0, 0);
+        
+        this.viewer.addSplatScene(splatUrl, {
+            'showLoadingUI': false
+        }).then(() => {
+            console.log('[PortalSystem] Splat loaded');
+            this.splatMesh = this.viewer!.splatMesh;
+            
+            if (this.splatMesh) {
+                // Critical Hooks (must execute)
+                this.splatMesh.frustumCulled = false;
+                this.splatMesh.renderOrder = 1;
+
+                // Initial Stencil Config (Outside state)
+                this.setSplatStencil(true);
+            }
+        });
+
+        this.group.add(this.viewer);
 
         // 3. Frame (The "Door") - Load GLB
         const gltfLoader = new GLTFLoader();

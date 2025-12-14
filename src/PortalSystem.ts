@@ -93,21 +93,15 @@ export class PortalSystem {
         this.viewer.rotation.x = 0; 
         this.viewer.position.set(0, 0, 0);
         
+        // REMOVED: Do NOT auto-load splat here. 
+        // We wait for explicit loadSplat call from XRManager.
+        /*
         this.viewer.addSplatScene(splatUrl, {
             'showLoadingUI': false
         }).then(() => {
-            console.log('[PortalSystem] Splat loaded');
-            this.splatMesh = this.viewer!.splatMesh;
-            
-            if (this.splatMesh) {
-                // Critical Hooks (must execute)
-                this.splatMesh.frustumCulled = false;
-                this.splatMesh.renderOrder = 1;
-
-                // Initial Stencil Config (Outside state)
-                this.setSplatStencil(true);
-            }
+            // ...
         });
+        */
 
         this.group.add(this.viewer);
 

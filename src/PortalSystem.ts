@@ -13,6 +13,7 @@ export class PortalSystem {
     
     // State tracking
     private isInside: boolean = false;
+    private isLoading: boolean = false;
 
     private hiderWalls: THREE.Group | null = null;
 
@@ -268,10 +269,17 @@ export class PortalSystem {
     }
     
     public loadSplat(url: string): Promise<void> {
+        if (this.isLoading) {
+            console.warn('[PortalSystem] Load already in progress, ignoring request.');
+            return Promise.resolve();
+        }
+        this.isLoading = true;
+
         console.log(`[PortalSystem] Loading Splat from: ${url}`);
         
         if (!this.viewer) {
              console.error('[PortalSystem] Viewer not initialized!');
+             this.isLoading = false;
              return Promise.reject('Viewer not initialized');
         }
 
@@ -294,27 +302,19 @@ export class PortalSystem {
         return this.viewer.addSplatScene(url, {
             'showLoadingUI': false
         }).then(() => {
+            this.isLoading = false;
             console.log('[PortalSystem] Splat loaded');
             this.splatMesh = this.viewer!.splatMesh;
             
             if (this.splatMesh) {
                 this.splatMesh.frustumCulled = false;
                 this.splatMesh.renderOrder = 1;
-                
-                // If currently "inside", we want stencil disabled (full view)
-                // If "outside", we want stencil enabled (masked view)
-                // This preserves the state even after switching scenes
-                
-                // IMPORTANT: The splat mesh must ALWAYS be visible if stencil is disabled.
-                // If stencil is enabled, it should only be visible where stencil value matches.
-                // The issue "spz content is not visible until camera enters" suggests stencil ref/func logic is too strict
-                // or the mask isn't writing to stencil buffer correctly before splat renders.
-                
-                // Ensure mask renders FIRST (order 0) -> writes 1 to stencil
-                // Splat renders SECOND (order 1) -> draws only where stencil == 1
-                
                 this.setSplatStencil(!this.isInside);
             }
+        }).catch(err => {
+            this.isLoading = false;
+            console.error('[PortalSystem] Failed to load splat:', err);
+            throw err;
         });
     }
     

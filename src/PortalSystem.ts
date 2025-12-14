@@ -8,6 +8,7 @@ export class PortalSystem {
     private frame: THREE.Object3D | null = null;
     private viewer: DropInViewer | null = null;
     private splatMesh: THREE.Mesh | null = null;
+    private mixer: THREE.AnimationMixer | null = null;
     
     // State tracking
     private isInside: boolean = false;
@@ -77,7 +78,9 @@ export class PortalSystem {
         });
         
         // Adjust Viewer rotation/position to match spec
-        this.viewer.rotation.x = -Math.PI / 2;
+        // Update: User feedback indicates -90 deg X rotation causes "ceiling view".
+        // Setting to 0 should align standard Y-up models correctly with gravity.
+        this.viewer.rotation.x = 0; 
         this.viewer.position.set(0, 0, 0);
         
         this.viewer.addSplatScene(splatUrl, {
@@ -104,6 +107,17 @@ export class PortalSystem {
             this.frame = gltf.scene;
             this.frame.renderOrder = 2;
             
+            // Animation Setup
+            if (gltf.animations && gltf.animations.length > 0) {
+                console.log(`[PortalSystem] Found ${gltf.animations.length} animations in door model.`);
+                this.mixer = new THREE.AnimationMixer(this.frame);
+                // Play the first animation (usually 'Open' or similar)
+                const action = this.mixer.clipAction(gltf.animations[0]);
+                action.setLoop(THREE.LoopOnce, 1);
+                action.clampWhenFinished = true;
+                action.play();
+            }
+
             // Traverse to ensure depth write is true for frame (occlusion)
             this.frame.traverse((child: any) => {
                  if (child.isMesh) {
@@ -141,6 +155,11 @@ export class PortalSystem {
     }
     
     public update(camera: THREE.Camera) {
+        // Update Animation
+        if (this.mixer) {
+            this.mixer.update(0.016); // Approximate delta time (60fps)
+        }
+
         if (!this.group.visible || !this.splatMesh) return;
 
         // Calculate local position of camera relative to the portal group

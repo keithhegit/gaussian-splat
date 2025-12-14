@@ -10,6 +10,7 @@ export class XRManager {
     private reticle: THREE.Mesh;
     private hitTestSource: any = null; // XRHitTestSource type definition might be missing in basic types
     private hitTestSourceRequested: boolean = false;
+    private hasPlaced: boolean = false; // Flag for auto-placement
     
     private portalSystem: PortalSystem;
     private controller: THREE.XRTargetRaySpace;
@@ -106,8 +107,22 @@ export class XRManager {
 
                 if (hitTestResults.length > 0) {
                     const hit = hitTestResults[0];
-                    this.reticle.visible = true;
-                    this.reticle.matrix.fromArray(hit.getPose(referenceSpace).transform.matrix);
+                    const pose = hit.getPose(referenceSpace);
+                    
+                    if (pose) {
+                        this.reticle.visible = true;
+                        this.reticle.matrix.fromArray(pose.transform.matrix);
+                        
+                        // Auto-place if not yet placed
+                        if (!this.hasPlaced) {
+                            this.hasPlaced = true;
+                            const position = new THREE.Vector3();
+                            position.setFromMatrixPosition(this.reticle.matrix);
+                            this.portalSystem.place(position, this.camera);
+                            // Hide reticle after placement to clean up view
+                            this.reticle.visible = false; 
+                        }
+                    }
                 } else {
                     this.reticle.visible = false;
                 }

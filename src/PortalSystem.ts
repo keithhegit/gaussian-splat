@@ -14,16 +14,18 @@ export class PortalSystem {
     // State tracking
     private isInside: boolean = false;
 
+    private hiderWalls: THREE.Group | null = null;
+
     constructor() {
         this.group = new THREE.Group();
         this.group.visible = false; // Hidden until placed
 
         // 1. Portal Mask (The "Hole")
         // 1x2m plane, invisible, writes to stencil buffer
-        // Updated: Reduced size to 0.8x1.9 to fit inside door frame
-        const maskGeo = new THREE.PlaneGeometry(0.8, 1.9); 
-        // Shift center up by 0.95m so bottom is at 0
-        maskGeo.translate(0, 0.95, 0); 
+        // Updated: Reduced size to 0.75x1.85 to fit inside door frame
+        const maskGeo = new THREE.PlaneGeometry(0.75, 1.85); 
+        // Shift center up by 0.925m so bottom is at 0
+        maskGeo.translate(0, 0.925, 0); 
 
         const maskMat = new THREE.MeshBasicMaterial({
             color: 0x000000, 
@@ -38,6 +40,10 @@ export class PortalSystem {
         this.mask = new THREE.Mesh(maskGeo, maskMat);
         this.mask.renderOrder = 0;
         this.group.add(this.mask);
+
+        // 1.1 Hider Walls (Invisible Depth Mask)
+        // Surrounds the door to occlude splat "leaking"
+        this.createHiderWalls();
 
         // Determine Assets URLs
         // Priority:
@@ -138,6 +144,8 @@ export class PortalSystem {
                  }
             });
             
+            // Move frame slightly forward so it sits on top of Hider Walls (Z=0.01)
+            this.frame.position.z = 0.02;
             this.group.add(this.frame);
         }, undefined, (error) => {
              console.warn("Failed to load door_frame.glb, falling back to wireframe", error);
@@ -149,6 +157,54 @@ export class PortalSystem {
              this.frame.renderOrder = 2;
              this.group.add(this.frame);
         });
+    }
+
+    private createHiderWalls() {
+        this.hiderWalls = new THREE.Group();
+        // RenderOrder 0: Same as Mask. Writes Depth.
+        // We place it slightly in front of Z=0 (e.g. 0.01) to ensuring it occludes splats at Z=0?
+        // Actually, if we want it to be a "Wall" that the door frame sits IN,
+        // it should be at the same Z as the door frame roughly.
+        
+        const material = new THREE.MeshBasicMaterial({
+            color: 0x000000, // Debug color (change to invisible later)
+            colorWrite: false, // Invisible
+            depthWrite: true,
+        });
+
+        // 4 Planes around the 0.75 x 1.85 opening
+        // Top: Width 10m, Height 5m. Pos Y > 1.85
+        const topGeo = new THREE.PlaneGeometry(10, 5);
+        topGeo.translate(0, 1.85 + 2.5, 0); // Center at 1.85 + 2.5 = 4.35
+        const topMesh = new THREE.Mesh(topGeo, material);
+        topMesh.renderOrder = 0;
+        this.hiderWalls.add(topMesh);
+
+        // Bottom: Width 10m, Height 2m. Pos Y < 0.
+        // Wait, door starts at 0. So bottom wall is below 0.
+        const botGeo = new THREE.PlaneGeometry(10, 2);
+        botGeo.translate(0, -1, 0); 
+        const botMesh = new THREE.Mesh(botGeo, material);
+        botMesh.renderOrder = 0;
+        this.hiderWalls.add(botMesh);
+
+        // Left: Width 5m, Height 10m. Pos X < -0.375
+        const leftGeo = new THREE.PlaneGeometry(5, 10);
+        leftGeo.translate(-0.375 - 2.5, 2.5, 0);
+        const leftMesh = new THREE.Mesh(leftGeo, material);
+        leftMesh.renderOrder = 0;
+        this.hiderWalls.add(leftMesh);
+
+        // Right: Width 5m, Height 10m. Pos X > 0.375
+        const rightGeo = new THREE.PlaneGeometry(5, 10);
+        rightGeo.translate(0.375 + 2.5, 2.5, 0);
+        const rightMesh = new THREE.Mesh(rightGeo, material);
+        rightMesh.renderOrder = 0;
+        this.hiderWalls.add(rightMesh);
+
+        // Position Hider Walls slightly forward to ensure they occlude splats sticking out
+        this.hiderWalls.position.z = 0.01;
+        this.group.add(this.hiderWalls);
     }
 
     public place(position: THREE.Vector3, camera: THREE.Camera) {
@@ -195,11 +251,18 @@ export class PortalSystem {
             if (!this.isInside) {
                 this.isInside = true;
                 this.setSplatStencil(false);
+                // Inside: Hide Hider Walls (so we can see outside world through door? No, Hider Walls are invisible)
+                // But if they write depth, they might occlude the real world?
+                // No, in WebXR, real world is background.
+                // But we don't want Hider Walls to block the splat when we look back?
+                if (this.hiderWalls) this.hiderWalls.visible = false;
             }
         } else if (localPos.z > 0.1) {
              if (this.isInside) {
                  this.isInside = false;
                  this.setSplatStencil(true);
+                 // Outside: Show Hider Walls to clean up edges
+                 if (this.hiderWalls) this.hiderWalls.visible = true;
              }
         }
     }

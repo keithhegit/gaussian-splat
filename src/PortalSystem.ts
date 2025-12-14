@@ -172,7 +172,7 @@ export class PortalSystem {
         const topGeo = new THREE.PlaneGeometry(10, 5);
         topGeo.translate(0, 1.85 + 2.5, 0); // Center at 1.85 + 2.5 = 4.35
         const topMesh = new THREE.Mesh(topGeo, material);
-        topMesh.renderOrder = 0;
+        // topMesh.renderOrder = 0;
         this.hiderWalls.add(topMesh);
 
         // Bottom: Width 10m, Height 2m. Pos Y < 0.
@@ -180,25 +180,29 @@ export class PortalSystem {
         const botGeo = new THREE.PlaneGeometry(10, 2);
         botGeo.translate(0, -1, 0); 
         const botMesh = new THREE.Mesh(botGeo, material);
-        botMesh.renderOrder = 0;
+        // botMesh.renderOrder = 0;
         this.hiderWalls.add(botMesh);
 
         // Left: Width 5m, Height 10m. Pos X < -0.375
         const leftGeo = new THREE.PlaneGeometry(5, 10);
         leftGeo.translate(-0.375 - 2.5, 2.5, 0);
         const leftMesh = new THREE.Mesh(leftGeo, material);
-        leftMesh.renderOrder = 0;
+        // leftMesh.renderOrder = 0;
         this.hiderWalls.add(leftMesh);
 
         // Right: Width 5m, Height 10m. Pos X > 0.375
         const rightGeo = new THREE.PlaneGeometry(5, 10);
         rightGeo.translate(0.375 + 2.5, 2.5, 0);
         const rightMesh = new THREE.Mesh(rightGeo, material);
-        rightMesh.renderOrder = 0;
+        // rightMesh.renderOrder = 0;
         this.hiderWalls.add(rightMesh);
 
         // Position Hider Walls slightly forward to ensure they occlude splats sticking out
         this.hiderWalls.position.z = 0.01;
+        
+        // IMPORTANT: HiderWalls must be renderOrder 0 to write depth BEFORE splats (renderOrder 1)
+        this.hiderWalls.renderOrder = 0;
+        
         this.group.add(this.hiderWalls);
     }
 

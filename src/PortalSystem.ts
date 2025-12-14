@@ -140,7 +140,7 @@ export class PortalSystem {
             });
             
             // Move frame slightly forward so it sits on top of Hider Walls (Z=0.01)
-            this.frame.position.z = 0.02;
+            this.frame.position.z = 0.06;
             this.group.add(this.frame);
         }, undefined, (error) => {
              console.warn("Failed to load door_frame.glb, falling back to wireframe", error);
@@ -198,7 +198,7 @@ export class PortalSystem {
         this.hiderWalls.add(rightMesh);
 
         // Position Hider Walls slightly forward to ensure they occlude splats sticking out
-        this.hiderWalls.position.z = 0.01;
+        this.hiderWalls.position.z = 0.05;
         
         // IMPORTANT: HiderWalls must be renderOrder 0 to write depth BEFORE splats (renderOrder 1)
         this.hiderWalls.renderOrder = 0;
@@ -295,7 +295,17 @@ export class PortalSystem {
         }
         
         // Ensure viewer is positioned correctly for every load
-        this.viewer.position.set(0, 0, -1.0);
+        // Reverting to Z=0 because Z=-1.0 pushed it too far back and might be clipped by far plane or just misaligned.
+        // In 88afca3 (which worked but had clipping), Z was 0.
+        // The issue was clipping. HiderWalls are at Z=0.01.
+        // If Splat is at Z=0, it is BEHIND HiderWalls.
+        // So why was it clipping in 88afca3? 
+        // Because Splat is a VOLUME. Some points have +Z (sticking out).
+        // By moving Viewer to -1.0, we moved ALL points back. Maybe too far.
+        // Let's try moving it just enough to clear the door frame, e.g. -0.5 or back to 0 but rely on HiderWalls better.
+        // Actually, if it disappeared at -1.0, maybe the scale is small and -1.0 is huge?
+        // Let's revert to 0 first to restore visibility, then verify HiderWalls logic.
+        this.viewer.position.set(0, 0, 0);
 
         return this.viewer.addSplatScene(url, {
             'showLoadingUI': false

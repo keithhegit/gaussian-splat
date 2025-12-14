@@ -115,6 +115,7 @@ export class PortalSystem {
                 const action = this.mixer.clipAction(gltf.animations[0]);
                 action.setLoop(THREE.LoopOnce, 1);
                 action.clampWhenFinished = true;
+                action.timeScale = 0.5; // Slow down animation (0.5x speed)
                 action.play();
             }
 
@@ -183,6 +184,47 @@ export class PortalSystem {
                  this.setSplatStencil(true);
              }
         }
+    }
+    
+    public loadSplat(url: string) {
+        // Cleanup existing viewer/splat
+        if (this.viewer) {
+            this.group.remove(this.viewer);
+            // viewer.dispose() is not strictly exposed but removing from scene stops rendering
+            // For proper cleanup we might need to look into DropInViewer's internals or just recreate it
+            this.viewer = null;
+            this.splatMesh = null;
+        }
+
+        console.log(`[PortalSystem] Loading Splat from: ${url}`);
+
+        // Re-create Viewer
+        this.viewer = new DropInViewer({
+            'sharedMemoryForWorkers': false
+        });
+        
+        // Setting to 0 should align standard Y-up models correctly with gravity.
+        this.viewer.rotation.x = 0; 
+        this.viewer.position.set(0, 0, 0);
+        
+        this.viewer.addSplatScene(url, {
+            'showLoadingUI': false
+        }).then(() => {
+            console.log('[PortalSystem] Splat loaded');
+            this.splatMesh = this.viewer!.splatMesh;
+            
+            if (this.splatMesh) {
+                this.splatMesh.frustumCulled = false;
+                this.splatMesh.renderOrder = 1;
+                
+                // If currently "inside", we want stencil disabled (full view)
+                // If "outside", we want stencil enabled (masked view)
+                // This preserves the state even after switching scenes
+                this.setSplatStencil(!this.isInside);
+            }
+        });
+
+        this.group.add(this.viewer);
     }
     
     private setSplatStencil(enable: boolean) {

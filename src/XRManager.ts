@@ -47,12 +47,46 @@ export class XRManager {
         this.controller.addEventListener('select', this.onSelect.bind(this));
         this.scene.add(this.controller);
 
-        // 8. Setup AR Button
-        const button = ARButton.createButton(this.renderer, { requiredFeatures: ['hit-test'] });
+        // 8. Setup AR Button with DOM Overlay
+        const overlay = document.getElementById('overlay');
+        const button = ARButton.createButton(this.renderer, { 
+            requiredFeatures: ['hit-test'],
+            optionalFeatures: ['dom-overlay'],
+            domOverlay: { root: overlay! }
+        });
         document.body.appendChild(button);
 
         // 9. Event Listeners
         window.addEventListener('resize', this.onWindowResize.bind(this));
+
+        // 10. UI Binding
+        this.setupUI();
+    }
+
+    private setupUI() {
+        const selector = document.getElementById('scene-selector') as HTMLSelectElement;
+        if (selector) {
+            selector.addEventListener('change', (e) => {
+                const value = (e.target as HTMLSelectElement).value;
+                this.handleSceneChange(value);
+            });
+        }
+    }
+
+    private handleSceneChange(sceneKey: string) {
+        console.log(`[XRManager] Switching to scene: ${sceneKey}`);
+        
+        // Map keys to URLs (In real app, maybe use a config object)
+        const DEFAULT_SPLAT_URL = 'https://glb.keithhe.com/ar/door/store-hywbtsc9s9.spz';
+        
+        let url = DEFAULT_SPLAT_URL;
+        if (sceneKey === 'garden') {
+            // Demo: Use same URL for now, or a different one if available
+            // url = '...'; 
+            console.log('[XRManager] Garden scene selected (using default for demo)');
+        }
+
+        this.portalSystem.loadSplat(url);
     }
 
     private onSelect() {

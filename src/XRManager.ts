@@ -163,21 +163,20 @@ export class XRManager {
                     const pose = hit.getPose(referenceSpace);
                     
                     if (pose) {
-                        this.reticle.visible = true;
-                        this.reticle.matrix.fromArray(pose.transform.matrix);
+                        // this.reticle.visible = true;
+                        // this.reticle.matrix.fromArray(pose.transform.matrix);
                         
                         // Auto-place if not yet placed
                         if (!this.hasPlaced) {
                             this.hasPlaced = true;
                             const position = new THREE.Vector3();
-                            position.setFromMatrixPosition(this.reticle.matrix);
+                            // Use the hit test pose directly for placement, no need for reticle
+                            const matrix = new THREE.Matrix4().fromArray(pose.transform.matrix);
+                            position.setFromMatrixPosition(matrix);
+                            
                             this.portalSystem.place(position, this.camera);
-                            // Hide reticle after placement to clean up view
-                            this.reticle.visible = false; 
                         }
                     }
-                } else {
-                    this.reticle.visible = false;
                 }
             }
         }

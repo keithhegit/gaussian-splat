@@ -20,7 +20,7 @@ export class PortalSystem {
 
         // 1. Portal Mask (The "Hole")
         // 1x2m plane, invisible, writes to stencil buffer
-        const maskGeo = new THREE.PlaneGeometry(0.9, 1.9); // Slightly smaller than door frame to avoid z-fighting
+        const maskGeo = new THREE.PlaneGeometry(1, 2); 
         // Shift center up by 1m so bottom is at 0
         maskGeo.translate(0, 1, 0); 
 

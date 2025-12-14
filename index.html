@@ -13,16 +13,47 @@
   <body>
     <div id="app"></div>
     <div id="overlay">
-        <div id="ui-container">
-            <select id="scene-selector">
-                <option value="store">Store</option>
-                <option value="hall">Cthulhu Hall</option>
-                <option value="town">Ancient Town</option>
-                <option value="planet">Planet</option>
-            </select>
+        <!-- Step 1: Scene Selection -->
+        <div id="scene-selection-screen">
+            <h1 class="title">WebXR Portal</h1>
+            <div class="scene-grid">
+                <button class="scene-card" data-scene="store">
+                    <div class="scene-name">Store</div>
+                </button>
+                <button class="scene-card" data-scene="hall">
+                    <div class="scene-name">Cthulhu Hall</div>
+                </button>
+                <button class="scene-card" data-scene="town">
+                    <div class="scene-name">Ancient Town</div>
+                </button>
+                <button class="scene-card" data-scene="planet">
+                    <div class="scene-name">Planet</div>
+                </button>
+            </div>
         </div>
-        <div id="start-prompt">
-            <div class="prompt-text">Tap Screen to Enter AR</div>
+
+        <!-- Step 2: Loading Screen -->
+        <div id="loading-screen" style="display: none;">
+            <div class="loading-content">
+                <div class="spinner"></div>
+                <div class="loading-text">平行宇宙正在加载中...</div>
+            </div>
+        </div>
+
+        <!-- Step 3: AR View UI (Hidden initially) -->
+        <div id="ar-ui" style="display: none;">
+             <div id="start-prompt">
+                <div class="prompt-text">Tap Screen to Enter AR</div>
+            </div>
+             <!-- Scene selector available in AR too for switching -->
+             <div id="ui-container">
+                <select id="scene-selector">
+                    <option value="store">Store</option>
+                    <option value="hall">Cthulhu Hall</option>
+                    <option value="town">Ancient Town</option>
+                    <option value="planet">Planet</option>
+                </select>
+            </div>
         </div>
     </div>
     <script type="module" src="/src/main.ts"></script>

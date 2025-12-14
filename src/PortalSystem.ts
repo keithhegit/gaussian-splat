@@ -117,7 +117,7 @@ export class PortalSystem {
                 const action = this.mixer.clipAction(gltf.animations[0]);
                 action.setLoop(THREE.LoopOnce, 1);
                 action.clampWhenFinished = true;
-                action.timeScale = 0.5; // Slow down animation
+                action.timeScale = 1.0; // Normal speed (faster than 0.5)
                 
                 // Reset to frame 0 and stop
                 action.reset();
@@ -203,7 +203,7 @@ export class PortalSystem {
         }
     }
     
-    public loadSplat(url: string) {
+    public loadSplat(url: string): Promise<void> {
         // Cleanup existing viewer/splat
         if (this.viewer) {
             this.group.remove(this.viewer);
@@ -224,7 +224,9 @@ export class PortalSystem {
         this.viewer.rotation.x = 0; 
         this.viewer.position.set(0, 0, 0);
         
-        this.viewer.addSplatScene(url, {
+        this.group.add(this.viewer);
+
+        return this.viewer.addSplatScene(url, {
             'showLoadingUI': false
         }).then(() => {
             console.log('[PortalSystem] Splat loaded');
@@ -249,8 +251,6 @@ export class PortalSystem {
                 this.setSplatStencil(!this.isInside);
             }
         });
-
-        this.group.add(this.viewer);
     }
     
     private setSplatStencil(enable: boolean) {

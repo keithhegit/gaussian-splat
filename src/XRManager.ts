@@ -84,6 +84,36 @@ export class XRManager {
 
         // 10. UI Binding
         this.setupUI();
+        this.setupSceneSelection();
+    }
+
+    private setupSceneSelection() {
+        const cards = document.querySelectorAll('.scene-card');
+        const selectionScreen = document.getElementById('scene-selection-screen');
+        const loadingScreen = document.getElementById('loading-screen');
+        const arUi = document.getElementById('ar-ui');
+        const sceneSelector = document.getElementById('scene-selector') as HTMLSelectElement;
+
+        cards.forEach(card => {
+            card.addEventListener('click', () => {
+                const sceneKey = card.getAttribute('data-scene');
+                if (sceneKey) {
+                    // Show Loading
+                    if (selectionScreen) selectionScreen.style.display = 'none';
+                    if (loadingScreen) loadingScreen.style.display = 'flex';
+
+                    // Update internal state and AR UI selector
+                    if (sceneSelector) sceneSelector.value = sceneKey;
+
+                    // Load Splat
+                    this.handleSceneChange(sceneKey).then(() => {
+                        // On Success
+                        if (loadingScreen) loadingScreen.style.display = 'none';
+                        if (arUi) arUi.style.display = 'block';
+                    });
+                }
+            });
+        });
     }
 
     private setupUI() {
@@ -96,13 +126,13 @@ export class XRManager {
         }
     }
 
-    private handleSceneChange(sceneKey: string) {
+    private async handleSceneChange(sceneKey: string) {
         console.log(`[XRManager] Switching to scene: ${sceneKey}`);
         
         // @ts-ignore
         const url = this.SCENES[sceneKey];
         if (url) {
-            this.portalSystem.loadSplat(url);
+            await this.portalSystem.loadSplat(url);
         } else {
             console.warn(`[XRManager] Unknown scene key: ${sceneKey}`);
         }

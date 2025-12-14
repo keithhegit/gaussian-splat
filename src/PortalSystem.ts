@@ -20,17 +20,18 @@ export class PortalSystem {
 
         // 1. Portal Mask (The "Hole")
         // 1x2m plane, invisible, writes to stencil buffer
-        const maskGeo = new THREE.PlaneGeometry(1, 2);
+        const maskGeo = new THREE.PlaneGeometry(0.9, 1.9); // Slightly smaller than door frame to avoid z-fighting
         // Shift center up by 1m so bottom is at 0
         maskGeo.translate(0, 1, 0); 
 
         const maskMat = new THREE.MeshBasicMaterial({
-            color: 0xff00ff, // Color doesn't matter, colorWrite is false
-            colorWrite: false,
+            color: 0x000000, 
+            colorWrite: false, // Do not draw color
+            depthWrite: false, // Do not write to depth (let splats draw over it if needed, though they are usually behind)
             stencilWrite: true,
             stencilRef: 1,
-            stencilFunc: THREE.AlwaysStencilFunc,
-            stencilZPass: THREE.ReplaceStencilOp,
+            stencilFunc: THREE.AlwaysStencilFunc, // Always pass stencil test
+            stencilZPass: THREE.ReplaceStencilOp, // Replace stencil value with 1
         });
 
         this.mask = new THREE.Mesh(maskGeo, maskMat);
@@ -236,6 +237,15 @@ export class PortalSystem {
                 // If currently "inside", we want stencil disabled (full view)
                 // If "outside", we want stencil enabled (masked view)
                 // This preserves the state even after switching scenes
+                
+                // IMPORTANT: The splat mesh must ALWAYS be visible if stencil is disabled.
+                // If stencil is enabled, it should only be visible where stencil value matches.
+                // The issue "spz content is not visible until camera enters" suggests stencil ref/func logic is too strict
+                // or the mask isn't writing to stencil buffer correctly before splat renders.
+                
+                // Ensure mask renders FIRST (order 0) -> writes 1 to stencil
+                // Splat renders SECOND (order 1) -> draws only where stencil == 1
+                
                 this.setSplatStencil(!this.isInside);
             }
         });
@@ -249,8 +259,15 @@ export class PortalSystem {
             if (child.isMesh && child.material) {
                 child.material.stencilWrite = enable;
                 if (enable) {
+                    // Only draw where stencil value is 1 (where the mask is)
                     child.material.stencilFunc = THREE.EqualStencilFunc;
                     child.material.stencilRef = 1;
+                    child.material.stencilOp = THREE.KeepStencilOp;
+                    child.material.stencilFail = THREE.KeepStencilOp;
+                    child.material.stencilZFail = THREE.KeepStencilOp;
+                } else {
+                    // If disabled (inside portal), just draw everything
+                     child.material.stencilWrite = false;
                 }
             }
         });

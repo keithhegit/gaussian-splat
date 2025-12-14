@@ -34,17 +34,45 @@ export class PortalSystem {
         this.mask.renderOrder = 0;
         this.group.add(this.mask);
 
-        // Determine Assets URL
-        // If VITE_ASSETS_URL is set (e.g. from Cloudflare), use it.
-        // Otherwise fallback to local 'assets/'
-        let baseUrl = import.meta.env.VITE_ASSETS_URL || 'assets/';
-        if (!baseUrl.endsWith('/')) baseUrl += '/';
+        // Determine Assets URLs
+        // Priority:
+        // 1. Full URL from Env Var (VITE_SPLAT_URL / VITE_DOOR_URL)
+        // 2. Constructed from VITE_ASSETS_URL + Default Filename
+        // 3. Default CDN URLs (Hardcoded fallback)
         
-        console.log(`[PortalSystem] Loading assets from: ${baseUrl}`);
+        const DEFAULT_SPLAT_URL = 'https://glb.keithhe.com/ar/door/store-hywbtsc9s9.spz';
+        const DEFAULT_DOOR_URL = 'https://glb.keithhe.com/ar/door/door-84s5k3c8k4.glb';
+
+        let splatUrl = import.meta.env.VITE_SPLAT_URL;
+        let doorUrl = import.meta.env.VITE_DOOR_URL;
+
+        // If specific URLs are not set, try to construct from ASSETS_URL or use defaults
+        if (!splatUrl) {
+            const baseUrl = import.meta.env.VITE_ASSETS_URL;
+            if (baseUrl) {
+                const slash = baseUrl.endsWith('/') ? '' : '/';
+                splatUrl = `${baseUrl}${slash}store.spz`; // Fallback to standard name if using generic asset base
+            } else {
+                splatUrl = DEFAULT_SPLAT_URL;
+            }
+        }
+
+        if (!doorUrl) {
+            const baseUrl = import.meta.env.VITE_ASSETS_URL;
+            if (baseUrl) {
+                const slash = baseUrl.endsWith('/') ? '' : '/';
+                doorUrl = `${baseUrl}${slash}door_frame.glb`; // Fallback to standard name if using generic asset base
+            } else {
+                doorUrl = DEFAULT_DOOR_URL;
+            }
+        }
+        
+        console.log(`[PortalSystem] Loading Splat from: ${splatUrl}`);
+        console.log(`[PortalSystem] Loading Door from: ${doorUrl}`);
 
         // 2. Load Splat (SPZ)
         const loader = new SpzLoader();
-        loader.load(`${baseUrl}store.spz`, (splat: any) => {
+        loader.load(splatUrl, (splat: any) => {
             this.splatMesh = splat;
             
             // Critical Hooks (must execute)
@@ -64,7 +92,7 @@ export class PortalSystem {
 
         // 3. Frame (The "Door") - Load GLB
         const gltfLoader = new GLTFLoader();
-        gltfLoader.load(`${baseUrl}door_frame.glb`, (gltf) => {
+        gltfLoader.load(doorUrl, (gltf) => {
             this.frame = gltf.scene;
             this.frame.renderOrder = 2;
             

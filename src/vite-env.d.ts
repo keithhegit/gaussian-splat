@@ -2,6 +2,8 @@
 
 interface ImportMetaEnv {
     readonly VITE_ASSETS_URL: string;
+    readonly VITE_SPLAT_URL: string;
+    readonly VITE_DOOR_URL: string;
 }
 
 interface ImportMeta {

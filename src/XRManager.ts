@@ -15,6 +15,14 @@ export class XRManager {
     private portalSystem: PortalSystem;
     private controller: THREE.XRTargetRaySpace;
 
+    // Config for scenes
+    private readonly SCENES = {
+        store: 'https://glb.keithhe.com/ar/door/store-hywbtsc9s9.spz',
+        hall: 'https://glb.keithhe.com/ar/spz/cathulu_hall.spz',
+        town: 'https://glb.keithhe.com/ar/spz/ancient_town.spz',
+        planet: 'https://glb.keithhe.com/ar/spz/planet.spz'
+    };
+
     constructor() {
         // 1. Setup Scene
         this.scene = new THREE.Scene();
@@ -47,14 +55,29 @@ export class XRManager {
         this.controller.addEventListener('select', this.onSelect.bind(this));
         this.scene.add(this.controller);
 
-        // 8. Setup AR Button with DOM Overlay
+        // 8. Setup AR Button with DOM Overlay (Hidden, driven by custom UI)
         const overlay = document.getElementById('overlay');
-        const button = ARButton.createButton(this.renderer, { 
+        const arButton = ARButton.createButton(this.renderer, { 
             requiredFeatures: ['hit-test'],
             optionalFeatures: ['dom-overlay'],
             domOverlay: { root: overlay! }
         });
-        document.body.appendChild(button);
+        
+        // Hide default button
+        arButton.style.display = 'none';
+        document.body.appendChild(arButton);
+
+        // Custom Start Logic
+        const startPrompt = document.getElementById('start-prompt');
+        if (startPrompt) {
+            startPrompt.addEventListener('click', () => {
+                // Programmatically trigger AR session
+                // We simulate a click on the hidden ARButton or call logic directly if exposed
+                // Since ARButton logic is internal, we can try to click it
+                arButton.click();
+                startPrompt.style.display = 'none';
+            });
+        }
 
         // 9. Event Listeners
         window.addEventListener('resize', this.onWindowResize.bind(this));
@@ -76,17 +99,13 @@ export class XRManager {
     private handleSceneChange(sceneKey: string) {
         console.log(`[XRManager] Switching to scene: ${sceneKey}`);
         
-        // Map keys to URLs (In real app, maybe use a config object)
-        const DEFAULT_SPLAT_URL = 'https://glb.keithhe.com/ar/door/store-hywbtsc9s9.spz';
-        
-        let url = DEFAULT_SPLAT_URL;
-        if (sceneKey === 'garden') {
-            // Demo: Use same URL for now, or a different one if available
-            // url = '...'; 
-            console.log('[XRManager] Garden scene selected (using default for demo)');
+        // @ts-ignore
+        const url = this.SCENES[sceneKey];
+        if (url) {
+            this.portalSystem.loadSplat(url);
+        } else {
+            console.warn(`[XRManager] Unknown scene key: ${sceneKey}`);
         }
-
-        this.portalSystem.loadSplat(url);
     }
 
     private onSelect() {

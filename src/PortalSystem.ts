@@ -9,6 +9,7 @@ export class PortalSystem {
     private viewer: DropInViewer | null = null;
     private splatMesh: THREE.Mesh | null = null;
     private mixer: THREE.AnimationMixer | null = null;
+    private storedAction: THREE.AnimationAction | null = null;
     
     // State tracking
     private isInside: boolean = false;
@@ -111,12 +112,17 @@ export class PortalSystem {
             if (gltf.animations && gltf.animations.length > 0) {
                 console.log(`[PortalSystem] Found ${gltf.animations.length} animations in door model.`);
                 this.mixer = new THREE.AnimationMixer(this.frame);
-                // Play the first animation (usually 'Open' or similar)
+                // Setup the first animation but DO NOT play it yet
                 const action = this.mixer.clipAction(gltf.animations[0]);
                 action.setLoop(THREE.LoopOnce, 1);
                 action.clampWhenFinished = true;
-                action.timeScale = 0.5; // Slow down animation (0.5x speed)
-                action.play();
+                action.timeScale = 0.5; // Slow down animation
+                
+                // Reset to frame 0 and stop
+                action.reset();
+                action.stop();
+                
+                this.storedAction = action;
             }
 
             // Traverse to ensure depth write is true for frame (occlusion)
@@ -153,8 +159,18 @@ export class PortalSystem {
         targetPos.y = position.y; // Keep target on same level as portal
 
         this.group.lookAt(targetPos);
+
+        // Play Door Animation if available
+        this.playDoorAnimation();
     }
-    
+
+    private playDoorAnimation() {
+        if (this.storedAction) {
+            this.storedAction.reset();
+            this.storedAction.play();
+        }
+    }
+
     public update(camera: THREE.Camera) {
         // Update Animation
         if (this.mixer) {

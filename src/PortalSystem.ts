@@ -268,27 +268,28 @@ export class PortalSystem {
     }
     
     public loadSplat(url: string): Promise<void> {
-        // Cleanup existing viewer/splat
-        if (this.viewer) {
-            this.group.remove(this.viewer);
-            // viewer.dispose() is not strictly exposed but removing from scene stops rendering
-            // For proper cleanup we might need to look into DropInViewer's internals or just recreate it
-            this.viewer = null;
+        console.log(`[PortalSystem] Loading Splat from: ${url}`);
+        
+        if (!this.viewer) {
+             console.error('[PortalSystem] Viewer not initialized!');
+             return Promise.reject('Viewer not initialized');
+        }
+
+        // Strategy: Dispose OLD mesh from viewer scene if it exists, but KEEP the Viewer instance
+        if (this.splatMesh) {
+            this.splatMesh.geometry.dispose();
+            // @ts-ignore
+            if (this.splatMesh.material.dispose) this.splatMesh.material.dispose();
+            this.viewer.remove(this.splatMesh);
             this.splatMesh = null;
         }
 
-        console.log(`[PortalSystem] Loading Splat from: ${url}`);
-
-        // Re-create Viewer
-        this.viewer = new DropInViewer({
-            'sharedMemoryForWorkers': false
-        });
+        while(this.viewer.children.length > 0){ 
+            this.viewer.remove(this.viewer.children[0]); 
+        }
         
-        // Setting to 0 should align standard Y-up models correctly with gravity.
-        this.viewer.rotation.x = 0; 
-        this.viewer.position.set(0, 0, 0);
-        
-        this.group.add(this.viewer);
+        // Ensure viewer is positioned correctly for every load
+        this.viewer.position.set(0, 0, -1.0);
 
         return this.viewer.addSplatScene(url, {
             'showLoadingUI': false

@@ -20,6 +20,12 @@ export class PortalSystem {
         import.meta.env.VITE_DEBUG_PORTAL === 'true' ||
         (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('debug'));
 
+    // Portal convention (matching THREE.Object3D.lookAt):
+    // - After `group.lookAt(camera)`, the group's -Z axis points toward the camera (OUTSIDE).
+    // - Therefore, local z < 0 => camera is outside (in front of portal), local z > 0 => camera is inside.
+    private readonly outsideThresholdZ = -0.1;
+    private readonly insideThresholdZ = 0.1;
+
     constructor() {
         this.group = new THREE.Group();
         this.group.visible = false; // Hidden until placed
@@ -216,8 +222,9 @@ export class PortalSystem {
         rightMesh.renderOrder = -5;
         this.hiderWalls.add(rightMesh);
 
-        // Position Hider Walls slightly forward to ensure they occlude splats sticking out
-        this.hiderWalls.position.z = 0.05;
+        // IMPORTANT: With our portal convention, OUTSIDE is -Z (toward camera).
+        // HiderWalls must sit slightly toward the camera so they can occlude the splat outside the opening.
+        this.hiderWalls.position.z = -0.03;
         
         // IMPORTANT: HiderWalls must render BEFORE splats to write depth
         this.hiderWalls.renderOrder = -5; // (group renderOrder doesn't affect meshes, but kept for clarity)
@@ -235,9 +242,10 @@ export class PortalSystem {
         targetPos.y = position.y; // Keep target on same level as portal
 
         this.group.lookAt(targetPos);
-        // NOTE: THREE.Object3D.lookAt makes the object's -Z axis point at target.
-        // For our portal conventions (and existing inside/outside logic), we want +Z to face the camera.
-        this.group.rotateY(Math.PI);
+
+        // Reset portal state on placement: user starts OUTSIDE.
+        this.isInside = false;
+        if (this.hiderWalls) this.hiderWalls.visible = true;
 
         // Play Door Animation if available
         this.playDoorAnimation();
@@ -264,27 +272,24 @@ export class PortalSystem {
         camera.getWorldPosition(localPos);
         this.group.worldToLocal(localPos);
 
-        // State Machine with Hysteresis
-        // Z < -0.1 : Inside (Behind the door) -> Disable Stencil (Full View)
-        // Z > 0.1  : Outside (In front of door) -> Enable Stencil (Masked View)
-        
-        if (localPos.z < -0.1) {
+        // State Machine with Hysteresis (8thwall-style)
+        // - OUTSIDE  (in front of portal): local z < outsideThresholdZ => show HiderWalls (portal "hole")
+        // - INSIDE   (behind portal):      local z > insideThresholdZ  => hide HiderWalls (full splat view)
+        if (localPos.z > this.insideThresholdZ) {
             if (!this.isInside) {
                 this.isInside = true;
                 this.setSplatStencil(false);
-                // Inside: Hide Hider Walls (so we can see outside world through door? No, Hider Walls are invisible)
-                // But if they write depth, they might occlude the real world?
-                // No, in WebXR, real world is background.
-                // But we don't want Hider Walls to block the splat when we look back?
                 if (this.hiderWalls) this.hiderWalls.visible = false;
             }
-        } else if (localPos.z > 0.1) {
-             if (this.isInside) {
-                 this.isInside = false;
-                 this.setSplatStencil(true);
-                 // Outside: Show Hider Walls to clean up edges
-                 if (this.hiderWalls) this.hiderWalls.visible = true;
-             }
+            return;
+        }
+
+        if (localPos.z < this.outsideThresholdZ) {
+            if (this.isInside) {
+                this.isInside = false;
+                this.setSplatStencil(true);
+                if (this.hiderWalls) this.hiderWalls.visible = true;
+            }
         }
     }
     
@@ -340,17 +345,25 @@ export class PortalSystem {
                 this.splatMesh.frustumCulled = false;
                 // Render after depth occluders, before visible frame
                 this.splatMesh.renderOrder = 0;
+                // Ensure the splat participates in depth testing so HiderWalls can occlude it outside the opening.
+                this.splatMesh.traverse((child: any) => {
+                    if (child?.isMesh && child.material) {
+                        child.material.depthTest = true;
+                        child.material.depthWrite = false;
+                    }
+                });
 
                 // Ensure splat content sits *behind* the portal plane (z <= 0 in portal local),
                 // otherwise points that protrude forward can pass depth tests and "leak" through the frame.
                 // We compute a conservative offset from the splat bounds and clamp it to avoid extreme jumps.
                 const bounds = new THREE.Box3().setFromObject(this.splatMesh);
-                const frontMostZ = bounds.max.z;
+                const backMostZ = bounds.min.z;
                 const viewer = this.viewer;
-                if (Number.isFinite(frontMostZ) && viewer) {
+                // Portal convention: inside is +Z. Push the splat so its nearest point is behind the portal plane.
+                if (Number.isFinite(backMostZ) && viewer) {
                     const margin = 0.08;
-                    const rawOffset = -(Math.max(0, frontMostZ) + margin);
-                    const clampedOffset = THREE.MathUtils.clamp(rawOffset, -4.0, -0.05);
+                    const rawOffset = Math.max(0, -backMostZ + margin);
+                    const clampedOffset = THREE.MathUtils.clamp(rawOffset, 0.05, 4.0);
                     viewer.position.z = clampedOffset;
                 }
                 if (this.debugEnabled) {

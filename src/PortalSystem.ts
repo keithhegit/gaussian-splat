@@ -270,13 +270,25 @@ export class PortalSystem {
                 // Start in OUTSIDE mode (clipped to the door opening)
                 this.isInside = false;
                 this.setSplatStencil(true);
-                this.fitSplatToPortal(viewer, this.splatMesh);
+                // Fit can be unstable if bounds are not ready on the first tick (library may finalize later).
+                // Apply immediately and then again on the next frame + a short delay.
+                this.applyDeferredFit(viewer, this.splatMesh);
             }
         }).catch(err => {
             this.isLoading = false;
             console.error('[PortalSystem] Failed to load splat:', err);
             throw err;
         });
+    }
+
+    private applyDeferredFit(viewer: THREE.Object3D, splatRoot: THREE.Object3D) {
+        this.fitSplatToPortal(viewer, splatRoot);
+
+        if (typeof requestAnimationFrame !== 'undefined') {
+            requestAnimationFrame(() => this.fitSplatToPortal(viewer, splatRoot));
+        }
+
+        setTimeout(() => this.fitSplatToPortal(viewer, splatRoot), 200);
     }
     
     private getPortalOpeningWidth() {
@@ -303,6 +315,15 @@ export class PortalSystem {
 
         const clampedScale = THREE.MathUtils.clamp(scaleToFit, 0.01, 50);
         viewer.scale.setScalar(clampedScale);
+
+        if (this.debugPortalEnabled) {
+            console.log('[PortalDebug][fit]', {
+                opening: { w: openingWidth, h: openingHeight },
+                padding: this.portalFitPadding,
+                size: { x: size.x, y: size.y, z: size.z },
+                scale: clampedScale,
+            });
+        }
 
         // Align content inside the opening.
         // Note: viewer offsets are scaled-space, so multiply by clampedScale.
@@ -354,6 +375,8 @@ export class PortalSystem {
         this.lastDebugLogAtMs = now;
 
         const viewer = this.viewer;
+        // Make the padding value visible even in collapsed console views
+        console.log('[PortalDebug][pad]', this.portalFitPadding);
         console.log('[PortalDebug]', {
             context,
             isInside: this.isInside,

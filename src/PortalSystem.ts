@@ -16,6 +16,9 @@ export class PortalSystem {
     private isLoading: boolean = false;
 
     private hiderWalls: THREE.Group | null = null;
+    private readonly debugEnabled: boolean =
+        import.meta.env.VITE_DEBUG_PORTAL === 'true' ||
+        (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('debug'));
 
     constructor() {
         this.group = new THREE.Group();
@@ -112,8 +115,15 @@ export class PortalSystem {
         const gltfLoader = new GLTFLoader();
         gltfLoader.load(doorUrl, (gltf) => {
             this.frame = gltf.scene;
-            // Render BEFORE splats, write depth so it occludes splats correctly (no need for a cloned occluder)
-            this.frame.renderOrder = -3;
+            // IMPORTANT:
+            // Many door GLBs use alpha/cutout materials (or hidden geometry) for the "hole".
+            // Forcing depthWrite=true + rendering before splats can accidentally write depth across the opening,
+            // which makes the splat disappear completely.
+            //
+            // Safer strategy (8thwall-style):
+            // - Use HiderWalls as the depth-only occluder for "outside the hole"
+            // - Render the visible frame LAST so it always overlays the splat at the edges
+            this.frame.renderOrder = 10;
             
             // Animation Setup
             if (gltf.animations && gltf.animations.length > 0) {
@@ -135,9 +145,11 @@ export class PortalSystem {
             // Visible frame should NOT participate in stencil logic (stencil is owned by `mask` only).
             this.frame.traverse((child: any) => {
                  if (child.isMesh) {
-                     child.renderOrder = -3;
+                     child.renderOrder = 10;
                      if (child.material) {
-                         child.material.depthWrite = true;
+                         // Do NOT force depthWrite here; render order handles visual priority.
+                         // Leaving depthWrite off avoids "invisible portal" when the door uses cutouts/alpha.
+                         child.material.depthWrite = false;
                          child.material.depthTest = true;
                          child.material.stencilWrite = false;
                      }
@@ -154,7 +166,7 @@ export class PortalSystem {
              frameGeo.translate(0, 1.05, 0);
              const frameMat = new THREE.MeshBasicMaterial({ color: 0xffff00, wireframe: true });
              this.frame = new THREE.Mesh(frameGeo, frameMat);
-             this.frame.renderOrder = -3;
+             this.frame.renderOrder = 10;
              this.group.add(this.frame);
         });
     }
@@ -300,9 +312,9 @@ export class PortalSystem {
             this.splatMesh = null;
         }
 
-        while(this.viewer.children.length > 0){ 
-            this.viewer.remove(this.viewer.children[0]); 
-        }
+        // NOTE:
+        // DropInViewer may own internal children; clearing all children can break rendering in some versions.
+        // We only remove the previous splat mesh above.
         
         // Ensure viewer is positioned correctly for every load
         // Reverting to Z=0 because Z=-1.0 pushed it too far back and might be clipped by far plane or just misaligned.
@@ -334,11 +346,25 @@ export class PortalSystem {
                 // We compute a conservative offset from the splat bounds and clamp it to avoid extreme jumps.
                 const bounds = new THREE.Box3().setFromObject(this.splatMesh);
                 const frontMostZ = bounds.max.z;
-                if (Number.isFinite(frontMostZ) && this.viewer) {
+                const viewer = this.viewer;
+                if (Number.isFinite(frontMostZ) && viewer) {
                     const margin = 0.08;
                     const rawOffset = -(Math.max(0, frontMostZ) + margin);
                     const clampedOffset = THREE.MathUtils.clamp(rawOffset, -4.0, -0.05);
-                    this.viewer.position.z = clampedOffset;
+                    viewer.position.z = clampedOffset;
+                }
+                if (this.debugEnabled) {
+                    console.log('[PortalSystem][debug] splat bounds:', bounds.min, bounds.max);
+                    if (viewer) console.log('[PortalSystem][debug] viewer.position:', viewer.position);
+                    const boxHelper = new THREE.Box3Helper(bounds, 0xff00ff);
+                    // Make helper always visible (ignore depth), so we can confirm the splat is in front/behind
+                    // even if it is being occluded.
+                    // @ts-ignore
+                    (boxHelper.material as any).depthTest = false;
+                    // @ts-ignore
+                    (boxHelper.material as any).depthWrite = false;
+                    boxHelper.renderOrder = 999;
+                    if (viewer) viewer.add(boxHelper);
                 }
 
                 this.setSplatStencil(!this.isInside);

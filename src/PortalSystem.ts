@@ -31,10 +31,10 @@ export class PortalSystem {
     // Portal opening size in meters (tuned to sit INSIDE the visible door frame)
     private readonly portalOpeningWidth = 0.68;
     private readonly portalOpeningHeight = 1.75;
-    // User-requested: relative scaling.
-    // Apply this AFTER the "fit-to-opening" scale (i.e. take current real-time scale and multiply).
-    private readonly portalContentScaleMultiplier = 0.7;
-    private readonly portalFitPadding = 0.92; // leave a little margin so splat doesn't touch the frame edges
+    // Fit padding (leave margin so splat doesn't touch the frame edges).
+    // User requested: "take the 673b926 fit scale and then * 0.7" (single-stage).
+    // 673b926 used padding ~= 0.92, so we bake the multiplier into padding: 0.92 * 0.7 = 0.644.
+    private readonly portalFitPadding = 0.644;
     // Door GLB alignment note: the frame appears aligned toward bottom-left.
     // We keep the portal pivot stable (center-bottom), but align the *content* to the bottom-left edge.
     private readonly portalAnchor: 'centerBottom' | 'bottomLeft' = 'bottomLeft';
@@ -297,9 +297,8 @@ export class PortalSystem {
         const openingWidth = this.getPortalOpeningWidth();
         const openingHeight = this.getPortalOpeningHeight();
 
-        // Base fit scale (current real-time scale), then apply user multiplier (e.g. 70% of current).
-        const baseScaleToFit = Math.min(openingWidth / size.x, openingHeight / size.y) * this.portalFitPadding;
-        const scaleToFit = baseScaleToFit * this.portalContentScaleMultiplier;
+        // Single-stage fit scale (673b926 fit scale * 0.7 is baked into `portalFitPadding`)
+        const scaleToFit = Math.min(openingWidth / size.x, openingHeight / size.y) * this.portalFitPadding;
         if (!Number.isFinite(scaleToFit) || scaleToFit <= 0) return;
 
         const clampedScale = THREE.MathUtils.clamp(scaleToFit, 0.01, 50);
@@ -365,7 +364,6 @@ export class PortalSystem {
                 w: this.getPortalOpeningWidth(),
                 h: this.getPortalOpeningHeight(),
                 padding: this.portalFitPadding,
-                contentScaleMultiplier: this.portalContentScaleMultiplier,
                 anchor: this.portalAnchor,
             },
             viewer: viewer
@@ -391,7 +389,6 @@ export class PortalSystem {
                 w: this.getPortalOpeningWidth(),
                 h: this.getPortalOpeningHeight(),
                 padding: this.portalFitPadding,
-                contentScaleMultiplier: this.portalContentScaleMultiplier,
                 anchor: this.portalAnchor,
             },
             viewer: viewer

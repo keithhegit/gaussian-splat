@@ -51,6 +51,24 @@ export class XRManager {
         this.portalSystem = new PortalSystem();
         this.scene.add(this.portalSystem.group);
 
+        // Optional debugging from vConsole:
+        // - Add `?debugPortal=1` to enable periodic logs
+        // - Call `window.__portalDebug.dump()` anytime
+        if (typeof window !== 'undefined') {
+            // @ts-ignore
+            window.__portalDebug = {
+                dump: () => {
+                    // In this three.js version, getCamera() takes no args and returns the XR ArrayCamera.
+                    const xrCamera = this.renderer.xr.getCamera() as unknown as THREE.Camera;
+                    // Force one update tick so cameraLocalZ is fresh
+                    this.portalSystem.update(xrCamera);
+                    const state = this.portalSystem.debugDump();
+                    console.log('[PortalDebug][dump]', state);
+                    return state;
+                },
+            };
+        }
+
         // 7. Setup Controller (Input)
         this.controller = this.renderer.xr.getController(0);
         this.controller.addEventListener('select', this.onSelect.bind(this));
@@ -212,7 +230,11 @@ export class XRManager {
             }
         }
 
-        this.portalSystem.update(this.camera);
+        // In WebXR, `this.camera` (the base camera) does NOT reliably track the XR viewer pose.
+        // Use the XR camera (ArrayCamera) so portal inside/outside logic works correctly.
+        // In this three.js version, getCamera() takes no args and returns the XR ArrayCamera.
+        const xrCamera = this.renderer.xr.getCamera() as unknown as THREE.Camera;
+        this.portalSystem.update(xrCamera);
         this.renderer.render(this.scene, this.camera);
     }
 

@@ -6,3 +6,5 @@ dist
 *.log
 *.splat
 *.spz
+temp/
+.tmp_*

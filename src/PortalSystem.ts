@@ -12,15 +12,25 @@ export class PortalSystem {
     private storedAction: THREE.AnimationAction | null = null;
     
     private isLoading: boolean = false;
+    private isInside: boolean = false;
+    private lastCameraLocalZ: number | null = null;
+    private lastStencilEnabled: boolean = true;
+    private lastDebugLogAtMs: number = 0;
+    private readonly debugPortalEnabled: boolean =
+        typeof window !== 'undefined' &&
+        new URLSearchParams(window.location.search).get('debugPortal') === '1';
 
     // Baseline mode (Option 1):
     // - Prioritize "always visible" splat like 88afca3
     // - No hider walls, no stencil clipping, no inside/outside state machine
     // - Keep door animation + scene switching UX
     private readonly viewerBehindDoorZ = 0.9; // put splat behind the door so user starts OUTSIDE
-    private readonly portalOpeningWidth = 0.75;
-    private readonly portalOpeningHeight = 1.85;
+    // Portal opening size in meters (tuned to sit INSIDE the visible door frame)
+    private readonly portalOpeningWidth = 0.68;
+    private readonly portalOpeningHeight = 1.75;
     private readonly portalFitPadding = 0.92; // leave a little margin so splat doesn't touch the frame edges
+    private readonly outsideThresholdZ = -0.12;
+    private readonly insideThresholdZ = 0.12;
 
     constructor() {
         this.group = new THREE.Group();
@@ -157,6 +167,10 @@ export class PortalSystem {
 
         this.group.lookAt(targetPos);
 
+        // Placement always starts OUTSIDE.
+        this.isInside = false;
+        if (this.splatMesh) this.setSplatStencil(true);
+
         // Play Door Animation if available
         this.playDoorAnimation();
     }
@@ -168,10 +182,43 @@ export class PortalSystem {
         }
     }
 
-    public update(_camera: THREE.Camera) {
+    public update(camera: THREE.Camera) {
         // Update Animation
         if (this.mixer) {
             this.mixer.update(0.016); // Approximate delta time (60fps)
+        }
+
+        if (!this.group.visible || !this.splatMesh) return;
+
+        // Ensure matrices are current before converting coordinates
+        this.group.updateMatrixWorld(true);
+
+        // Minimal inside/outside switch:
+        // - Outside (in front of portal): clip splat to the door opening (stencil)
+        // - Inside  (behind portal): show full splat so the store doesn't "disappear"
+        const cameraWorld = new THREE.Vector3();
+        const effectiveCamera = (camera as any)?.isArrayCamera ? (camera as any).cameras?.[0] : camera;
+        if (!effectiveCamera) return;
+        effectiveCamera.updateMatrixWorld(true);
+        effectiveCamera.getWorldPosition(cameraWorld);
+        const cameraLocal = this.group.worldToLocal(cameraWorld);
+        this.lastCameraLocalZ = cameraLocal.z;
+
+        if (cameraLocal.z > this.insideThresholdZ) {
+            if (!this.isInside) {
+                this.isInside = true;
+                this.setSplatStencil(false);
+            }
+            this.maybeDebugLog('inside');
+            return;
+        }
+
+        if (cameraLocal.z < this.outsideThresholdZ) {
+            if (this.isInside) {
+                this.isInside = false;
+                this.setSplatStencil(true);
+            }
+            this.maybeDebugLog('outside');
         }
     }
     
@@ -203,7 +250,8 @@ export class PortalSystem {
                 this.splatMesh.frustumCulled = false;
                 // Keep same ordering as 88afca3: splat < door frame
                 this.splatMesh.renderOrder = 1;
-                // Baseline outside-mode: always clip splat to the portal mask
+                // Start in OUTSIDE mode (clipped to the door opening)
+                this.isInside = false;
                 this.setSplatStencil(true);
                 this.fitSplatToPortal(viewer, this.splatMesh);
             }
@@ -240,13 +288,19 @@ export class PortalSystem {
 
     private setSplatStencil(enable: boolean) {
         if (!this.splatMesh) return;
+        this.lastStencilEnabled = enable;
         this.splatMesh.traverse((child: any) => {
             if (!child?.isMesh || !child.material) return;
 
             // Three.js only applies stencil state when stencilWrite is enabled.
             // When enabled, we keep stencil values unchanged while testing for ref=1.
             child.material.stencilWrite = enable;
-            if (!enable) return;
+            if (!enable) {
+                // Important: don't leave EqualStencilFunc active when stencilWrite=false.
+                // Some runtimes behave inconsistently; Always is the safest.
+                child.material.stencilFunc = THREE.AlwaysStencilFunc;
+                return;
+            }
 
             child.material.stencilFunc = THREE.EqualStencilFunc;
             child.material.stencilRef = 1;
@@ -254,6 +308,55 @@ export class PortalSystem {
             child.material.stencilZFail = THREE.KeepStencilOp;
             child.material.stencilZPass = THREE.KeepStencilOp;
         });
+    }
+
+    private maybeDebugLog(context: 'inside' | 'outside') {
+        if (!this.debugPortalEnabled) return;
+        const now = Date.now();
+        if (now - this.lastDebugLogAtMs < 600) return; // throttle
+        this.lastDebugLogAtMs = now;
+
+        const viewer = this.viewer;
+        console.log('[PortalDebug]', {
+            context,
+            isInside: this.isInside,
+            cameraLocalZ: this.lastCameraLocalZ,
+            thresholds: { outside: this.outsideThresholdZ, inside: this.insideThresholdZ },
+            stencilEnabled: this.lastStencilEnabled,
+            opening: { w: this.portalOpeningWidth, h: this.portalOpeningHeight, padding: this.portalFitPadding },
+            viewer: viewer
+                ? {
+                      position: { x: viewer.position.x, y: viewer.position.y, z: viewer.position.z },
+                      scale: { x: viewer.scale.x, y: viewer.scale.y, z: viewer.scale.z },
+                  }
+                : null,
+        });
+    }
+
+    public debugDump() {
+        const viewer = this.viewer;
+        const splatMesh = this.splatMesh;
+        const bounds = splatMesh ? new THREE.Box3().setFromObject(splatMesh) : null;
+
+        return {
+            isInside: this.isInside,
+            cameraLocalZ: this.lastCameraLocalZ,
+            thresholds: { outside: this.outsideThresholdZ, inside: this.insideThresholdZ },
+            stencilEnabled: this.lastStencilEnabled,
+            opening: { w: this.portalOpeningWidth, h: this.portalOpeningHeight, padding: this.portalFitPadding },
+            viewer: viewer
+                ? {
+                      position: { x: viewer.position.x, y: viewer.position.y, z: viewer.position.z },
+                      scale: { x: viewer.scale.x, y: viewer.scale.y, z: viewer.scale.z },
+                  }
+                : null,
+            splatBounds: bounds
+                ? {
+                      min: { x: bounds.min.x, y: bounds.min.y, z: bounds.min.z },
+                      max: { x: bounds.max.x, y: bounds.max.y, z: bounds.max.z },
+                  }
+                : null,
+        };
     }
 
     public getSplatMesh() {

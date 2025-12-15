@@ -31,7 +31,13 @@ export class PortalSystem {
     // Portal opening size in meters (tuned to sit INSIDE the visible door frame)
     private readonly portalOpeningWidth = 0.68;
     private readonly portalOpeningHeight = 1.75;
+    // User-requested: relative scaling.
+    // Apply this AFTER the "fit-to-opening" scale (i.e. take current real-time scale and multiply).
+    private readonly portalContentScaleMultiplier = 0.7;
     private readonly portalFitPadding = 0.92; // leave a little margin so splat doesn't touch the frame edges
+    // Door GLB alignment note: the frame appears aligned toward bottom-left.
+    // We keep the portal pivot stable (center-bottom), but align the *content* to the bottom-left edge.
+    private readonly portalAnchor: 'centerBottom' | 'bottomLeft' = 'bottomLeft';
     // Match 88a38b7 convention:
     // - Outside (in front of portal): cameraLocal.z > +threshold
     // - Inside  (behind portal):      cameraLocal.z < -threshold
@@ -44,8 +50,11 @@ export class PortalSystem {
 
         // Portal Mask (88afca3 baseline): write stencil ref=1 for the door opening.
         // NOTE: This requires the renderer to be created with `{ stencil: true }`.
-        const maskGeo = new THREE.PlaneGeometry(this.portalOpeningWidth, this.portalOpeningHeight);
-        maskGeo.translate(0, this.portalOpeningHeight / 2, 0);
+        const openingWidth = this.getPortalOpeningWidth();
+        const openingHeight = this.getPortalOpeningHeight();
+        const maskGeo = new THREE.PlaneGeometry(openingWidth, openingHeight);
+        // Bottom at y=0, centered in X (pivot remains center-bottom)
+        maskGeo.translate(0, openingHeight / 2, 0);
         const maskMat = new THREE.MeshBasicMaterial({
             color: 0x000000,
             colorWrite: false,
@@ -270,6 +279,14 @@ export class PortalSystem {
         });
     }
     
+    private getPortalOpeningWidth() {
+        return this.portalOpeningWidth;
+    }
+
+    private getPortalOpeningHeight() {
+        return this.portalOpeningHeight;
+    }
+
     private fitSplatToPortal(viewer: THREE.Object3D, splatRoot: THREE.Object3D) {
         const bounds = new THREE.Box3().setFromObject(splatRoot);
         const size = new THREE.Vector3();
@@ -277,20 +294,33 @@ export class PortalSystem {
 
         if (!Number.isFinite(size.x) || !Number.isFinite(size.y) || size.x <= 0 || size.y <= 0) return;
 
-        const scaleToFit =
-            Math.min(this.portalOpeningWidth / size.x, this.portalOpeningHeight / size.y) * this.portalFitPadding;
+        const openingWidth = this.getPortalOpeningWidth();
+        const openingHeight = this.getPortalOpeningHeight();
+
+        // Base fit scale (current real-time scale), then apply user multiplier (e.g. 70% of current).
+        const baseScaleToFit = Math.min(openingWidth / size.x, openingHeight / size.y) * this.portalFitPadding;
+        const scaleToFit = baseScaleToFit * this.portalContentScaleMultiplier;
         if (!Number.isFinite(scaleToFit) || scaleToFit <= 0) return;
 
         const clampedScale = THREE.MathUtils.clamp(scaleToFit, 0.01, 50);
         viewer.scale.setScalar(clampedScale);
 
-        // Center X and align bottom to y=0 in portal space.
-        // Viewer offsets are scaled-space, so multiply by clampedScale.
-        const centerX = (bounds.min.x + bounds.max.x) / 2;
+        // Align content inside the opening.
+        // Note: viewer offsets are scaled-space, so multiply by clampedScale.
         const bottomY = bounds.min.y;
-
-        viewer.position.x = -centerX * clampedScale;
         viewer.position.y = -bottomY * clampedScale;
+
+        if (this.portalAnchor === 'bottomLeft') {
+            // Keep the *left edge* aligned to the opening's left edge, and bottom to y=0.
+            // Opening left edge is at x = -openingWidth/2 (pivot is center-bottom).
+            const openingLeftX = -openingWidth / 2;
+            const contentLeftX = bounds.min.x;
+            viewer.position.x = openingLeftX - contentLeftX * clampedScale;
+        } else {
+            // Default: center in X
+            const centerX = (bounds.min.x + bounds.max.x) / 2;
+            viewer.position.x = -centerX * clampedScale;
+        }
         viewer.position.z = this.viewerBehindDoorZ;
     }
 
@@ -331,7 +361,13 @@ export class PortalSystem {
             cameraLocalZ: this.lastCameraLocalZ,
             thresholds: { outside: this.outsideThresholdZ, inside: this.insideThresholdZ },
             stencilEnabled: this.lastStencilEnabled,
-            opening: { w: this.portalOpeningWidth, h: this.portalOpeningHeight, padding: this.portalFitPadding },
+            opening: {
+                w: this.getPortalOpeningWidth(),
+                h: this.getPortalOpeningHeight(),
+                padding: this.portalFitPadding,
+                contentScaleMultiplier: this.portalContentScaleMultiplier,
+                anchor: this.portalAnchor,
+            },
             viewer: viewer
                 ? {
                       position: { x: viewer.position.x, y: viewer.position.y, z: viewer.position.z },
@@ -351,7 +387,13 @@ export class PortalSystem {
             cameraLocalZ: this.lastCameraLocalZ,
             thresholds: { outside: this.outsideThresholdZ, inside: this.insideThresholdZ },
             stencilEnabled: this.lastStencilEnabled,
-            opening: { w: this.portalOpeningWidth, h: this.portalOpeningHeight, padding: this.portalFitPadding },
+            opening: {
+                w: this.getPortalOpeningWidth(),
+                h: this.getPortalOpeningHeight(),
+                padding: this.portalFitPadding,
+                contentScaleMultiplier: this.portalContentScaleMultiplier,
+                anchor: this.portalAnchor,
+            },
             viewer: viewer
                 ? {
                       position: { x: viewer.position.x, y: viewer.position.y, z: viewer.position.z },

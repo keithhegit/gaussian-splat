@@ -24,13 +24,19 @@ export class PortalSystem {
     // - Prioritize "always visible" splat like 88afca3
     // - No hider walls, no stencil clipping, no inside/outside state machine
     // - Keep door animation + scene switching UX
-    private readonly viewerBehindDoorZ = 0.9; // put splat behind the door so user starts OUTSIDE
+    // IMPORTANT: three.js Object3D.lookAt aligns the object's +Z toward the target.
+    // With our `group.lookAt(camera)`, camera is on local +Z side (OUTSIDE).
+    // Therefore, "inside" is local -Z, so we place the splat at negative Z behind the portal plane.
+    private readonly viewerBehindDoorZ = -0.9; // put splat behind the door so user starts OUTSIDE
     // Portal opening size in meters (tuned to sit INSIDE the visible door frame)
     private readonly portalOpeningWidth = 0.68;
     private readonly portalOpeningHeight = 1.75;
     private readonly portalFitPadding = 0.92; // leave a little margin so splat doesn't touch the frame edges
-    private readonly outsideThresholdZ = -0.12;
-    private readonly insideThresholdZ = 0.12;
+    // Match 88a38b7 convention:
+    // - Outside (in front of portal): cameraLocal.z > +threshold
+    // - Inside  (behind portal):      cameraLocal.z < -threshold
+    private readonly outsideThresholdZ = 0.12;
+    private readonly insideThresholdZ = -0.12;
 
     constructor() {
         this.group = new THREE.Group();
@@ -204,7 +210,8 @@ export class PortalSystem {
         const cameraLocal = this.group.worldToLocal(cameraWorld);
         this.lastCameraLocalZ = cameraLocal.z;
 
-        if (cameraLocal.z > this.insideThresholdZ) {
+        // Inside (behind the portal)
+        if (cameraLocal.z < this.insideThresholdZ) {
             if (!this.isInside) {
                 this.isInside = true;
                 this.setSplatStencil(false);
@@ -213,7 +220,8 @@ export class PortalSystem {
             return;
         }
 
-        if (cameraLocal.z < this.outsideThresholdZ) {
+        // Outside (in front of the portal)
+        if (cameraLocal.z > this.outsideThresholdZ) {
             if (this.isInside) {
                 this.isInside = false;
                 this.setSplatStencil(true);

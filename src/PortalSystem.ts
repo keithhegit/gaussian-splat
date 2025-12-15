@@ -4,6 +4,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 export class PortalSystem {
     public group: THREE.Group;
+    private mask: THREE.Mesh;
     private frame: THREE.Object3D | null = null;
     private viewer: DropInViewer | null = null;
     private splatMesh: THREE.Mesh | null = null;
@@ -21,6 +22,25 @@ export class PortalSystem {
     constructor() {
         this.group = new THREE.Group();
         this.group.visible = false; // Hidden until placed
+
+        // Portal Mask (88afca3 baseline): write stencil ref=1 for the door opening.
+        // NOTE: This requires the renderer to be created with `{ stencil: true }`.
+        const maskGeo = new THREE.PlaneGeometry(0.75, 1.85);
+        maskGeo.translate(0, 0.925, 0);
+        const maskMat = new THREE.MeshBasicMaterial({
+            color: 0x000000,
+            colorWrite: false,
+            depthWrite: false,
+            depthTest: false,
+            side: THREE.DoubleSide,
+            stencilWrite: true,
+            stencilRef: 1,
+            stencilFunc: THREE.AlwaysStencilFunc,
+            stencilZPass: THREE.ReplaceStencilOp,
+        });
+        this.mask = new THREE.Mesh(maskGeo, maskMat);
+        this.mask.renderOrder = 0;
+        this.group.add(this.mask);
 
         // Determine Assets URLs
         // Priority:
@@ -180,6 +200,8 @@ export class PortalSystem {
                 this.splatMesh.frustumCulled = false;
                 // Keep same ordering as 88afca3: splat < door frame
                 this.splatMesh.renderOrder = 1;
+                // Baseline outside-mode: always clip splat to the portal mask
+                this.setSplatStencil(true);
             }
         }).catch(err => {
             this.isLoading = false;
@@ -188,6 +210,24 @@ export class PortalSystem {
         });
     }
     
+    private setSplatStencil(enable: boolean) {
+        if (!this.splatMesh) return;
+        this.splatMesh.traverse((child: any) => {
+            if (!child?.isMesh || !child.material) return;
+
+            // Three.js only applies stencil state when stencilWrite is enabled.
+            // When enabled, we keep stencil values unchanged while testing for ref=1.
+            child.material.stencilWrite = enable;
+            if (!enable) return;
+
+            child.material.stencilFunc = THREE.EqualStencilFunc;
+            child.material.stencilRef = 1;
+            child.material.stencilFail = THREE.KeepStencilOp;
+            child.material.stencilZFail = THREE.KeepStencilOp;
+            child.material.stencilZPass = THREE.KeepStencilOp;
+        });
+    }
+
     public getSplatMesh() {
         return this.splatMesh;
     }

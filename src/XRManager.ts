@@ -31,7 +31,8 @@ export class XRManager {
         this.camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
 
         // 3. Setup Renderer
-        this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        // IMPORTANT: enable stencil buffer for "portal mask" clipping (88afca3 baseline behavior)
+        this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, stencil: true });
         this.renderer.setPixelRatio(window.devicePixelRatio);
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.xr.enabled = true;

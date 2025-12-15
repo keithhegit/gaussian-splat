@@ -18,6 +18,9 @@ export class PortalSystem {
     // - No hider walls, no stencil clipping, no inside/outside state machine
     // - Keep door animation + scene switching UX
     private readonly viewerBehindDoorZ = 0.9; // put splat behind the door so user starts OUTSIDE
+    private readonly portalOpeningWidth = 0.75;
+    private readonly portalOpeningHeight = 1.85;
+    private readonly portalFitPadding = 0.92; // leave a little margin so splat doesn't touch the frame edges
 
     constructor() {
         this.group = new THREE.Group();
@@ -25,8 +28,8 @@ export class PortalSystem {
 
         // Portal Mask (88afca3 baseline): write stencil ref=1 for the door opening.
         // NOTE: This requires the renderer to be created with `{ stencil: true }`.
-        const maskGeo = new THREE.PlaneGeometry(0.75, 1.85);
-        maskGeo.translate(0, 0.925, 0);
+        const maskGeo = new THREE.PlaneGeometry(this.portalOpeningWidth, this.portalOpeningHeight);
+        maskGeo.translate(0, this.portalOpeningHeight / 2, 0);
         const maskMat = new THREE.MeshBasicMaterial({
             color: 0x000000,
             colorWrite: false,
@@ -202,6 +205,7 @@ export class PortalSystem {
                 this.splatMesh.renderOrder = 1;
                 // Baseline outside-mode: always clip splat to the portal mask
                 this.setSplatStencil(true);
+                this.fitSplatToPortal(viewer, this.splatMesh);
             }
         }).catch(err => {
             this.isLoading = false;
@@ -210,6 +214,30 @@ export class PortalSystem {
         });
     }
     
+    private fitSplatToPortal(viewer: THREE.Object3D, splatRoot: THREE.Object3D) {
+        const bounds = new THREE.Box3().setFromObject(splatRoot);
+        const size = new THREE.Vector3();
+        bounds.getSize(size);
+
+        if (!Number.isFinite(size.x) || !Number.isFinite(size.y) || size.x <= 0 || size.y <= 0) return;
+
+        const scaleToFit =
+            Math.min(this.portalOpeningWidth / size.x, this.portalOpeningHeight / size.y) * this.portalFitPadding;
+        if (!Number.isFinite(scaleToFit) || scaleToFit <= 0) return;
+
+        const clampedScale = THREE.MathUtils.clamp(scaleToFit, 0.01, 50);
+        viewer.scale.setScalar(clampedScale);
+
+        // Center X and align bottom to y=0 in portal space.
+        // Viewer offsets are scaled-space, so multiply by clampedScale.
+        const centerX = (bounds.min.x + bounds.max.x) / 2;
+        const bottomY = bounds.min.y;
+
+        viewer.position.x = -centerX * clampedScale;
+        viewer.position.y = -bottomY * clampedScale;
+        viewer.position.z = this.viewerBehindDoorZ;
+    }
+
     private setSplatStencil(enable: boolean) {
         if (!this.splatMesh) return;
         this.splatMesh.traverse((child: any) => {

@@ -6,10 +6,13 @@ export class PortalSystem {
     public group: THREE.Group;
     private mask: THREE.Mesh;
     private frame: THREE.Object3D | null = null;
+    private frameOccluder: THREE.Object3D | null = null;
     private viewer: DropInViewer | null = null;
     private splatMesh: THREE.Mesh | null = null;
     private mixer: THREE.AnimationMixer | null = null;
     private storedAction: THREE.AnimationAction | null = null;
+    private occluderMixer: THREE.AnimationMixer | null = null;
+    private occluderAction: THREE.AnimationAction | null = null;
     
     // State tracking
     private isInside: boolean = false;
@@ -31,7 +34,9 @@ export class PortalSystem {
         const maskMat = new THREE.MeshBasicMaterial({
             color: 0x000000, 
             colorWrite: false, // Do not draw color
-            depthWrite: false, // Do not write to depth (let splats draw over it if needed, though they are usually behind)
+            depthWrite: false, // Do not write to depth (stencil-only)
+            depthTest: false,  // Must always write stencil (avoid depth ordering issues)
+            side: THREE.DoubleSide, // WebXR portals often face "backwards" due to lookAt using -Z
             stencilWrite: true,
             stencilRef: 1,
             stencilFunc: THREE.AlwaysStencilFunc, // Always pass stencil test
@@ -39,7 +44,8 @@ export class PortalSystem {
         });
 
         this.mask = new THREE.Mesh(maskGeo, maskMat);
-        this.mask.renderOrder = 0;
+        // Ensure stencil is written before any depth occluders/splats regardless of scene ordering
+        this.mask.renderOrder = -10;
         this.group.add(this.mask);
 
         // 1.1 Hider Walls (Invisible Depth Mask)
@@ -109,7 +115,7 @@ export class PortalSystem {
         const gltfLoader = new GLTFLoader();
         gltfLoader.load(doorUrl, (gltf) => {
             this.frame = gltf.scene;
-            this.frame.renderOrder = 2;
+            this.frame.renderOrder = 10;
             
             // Animation Setup
             if (gltf.animations && gltf.animations.length > 0) {
@@ -128,19 +134,20 @@ export class PortalSystem {
                 this.storedAction = action;
             }
 
-            // Traverse to ensure depth write is true for frame (occlusion)
+            // Visible frame should NOT participate in stencil logic (stencil is owned by `mask` only).
+            // We do a separate, invisible depth pre-pass using `frameOccluder` to occlude splats reliably.
             this.frame.traverse((child: any) => {
                  if (child.isMesh) {
-                     child.renderOrder = 2;
-                     child.material.depthWrite = true;
-                     child.material.stencilWrite = true;
-                     child.material.stencilFunc = THREE.AlwaysStencilFunc;
-                     child.material.stencilRef = 1;
+                     child.renderOrder = 10;
+                     if (child.material) {
+                         child.material.stencilWrite = false;
+                     }
                  }
             });
             
             // Move frame slightly forward so it sits on top of Hider Walls (Z=0.01)
             this.frame.position.z = 0.06;
+            this.createFrameOccluderFromFrame(this.frame, gltf.animations?.[0] ?? null);
             this.group.add(this.frame);
         }, undefined, (error) => {
              console.warn("Failed to load door_frame.glb, falling back to wireframe", error);
@@ -149,7 +156,8 @@ export class PortalSystem {
              frameGeo.translate(0, 1.05, 0);
              const frameMat = new THREE.MeshBasicMaterial({ color: 0xffff00, wireframe: true });
              this.frame = new THREE.Mesh(frameGeo, frameMat);
-             this.frame.renderOrder = 2;
+             this.frame.renderOrder = 10;
+             this.createFrameOccluderFromFrame(this.frame, null);
              this.group.add(this.frame);
         });
     }
@@ -165,6 +173,8 @@ export class PortalSystem {
             color: 0x000000, // Debug color (change to invisible later)
             colorWrite: false, // Invisible
             depthWrite: true,
+            depthTest: true,
+            side: THREE.DoubleSide,
         });
 
         // 4 Planes around the 0.75 x 1.85 opening
@@ -172,7 +182,7 @@ export class PortalSystem {
         const topGeo = new THREE.PlaneGeometry(10, 5);
         topGeo.translate(0, 1.85 + 2.5, 0); // Center at 1.85 + 2.5 = 4.35
         const topMesh = new THREE.Mesh(topGeo, material);
-        // topMesh.renderOrder = 0;
+        topMesh.renderOrder = -5;
         this.hiderWalls.add(topMesh);
 
         // Bottom: Width 10m, Height 2m. Pos Y < 0.
@@ -180,30 +190,79 @@ export class PortalSystem {
         const botGeo = new THREE.PlaneGeometry(10, 2);
         botGeo.translate(0, -1, 0); 
         const botMesh = new THREE.Mesh(botGeo, material);
-        // botMesh.renderOrder = 0;
+        botMesh.renderOrder = -5;
         this.hiderWalls.add(botMesh);
 
         // Left: Width 5m, Height 10m. Pos X < -0.375
         const leftGeo = new THREE.PlaneGeometry(5, 10);
         leftGeo.translate(-0.375 - 2.5, 2.5, 0);
         const leftMesh = new THREE.Mesh(leftGeo, material);
-        // leftMesh.renderOrder = 0;
+        leftMesh.renderOrder = -5;
         this.hiderWalls.add(leftMesh);
 
         // Right: Width 5m, Height 10m. Pos X > 0.375
         const rightGeo = new THREE.PlaneGeometry(5, 10);
         rightGeo.translate(0.375 + 2.5, 2.5, 0);
         const rightMesh = new THREE.Mesh(rightGeo, material);
-        // rightMesh.renderOrder = 0;
+        rightMesh.renderOrder = -5;
         this.hiderWalls.add(rightMesh);
 
         // Position Hider Walls slightly forward to ensure they occlude splats sticking out
         this.hiderWalls.position.z = 0.05;
         
-        // IMPORTANT: HiderWalls must be renderOrder 0 to write depth BEFORE splats (renderOrder 1)
-        this.hiderWalls.renderOrder = 0;
+        // IMPORTANT: HiderWalls must render BEFORE splats to write depth
+        this.hiderWalls.renderOrder = -5; // (group renderOrder doesn't affect meshes, but kept for clarity)
         
         this.group.add(this.hiderWalls);
+    }
+
+    private createFrameOccluderFromFrame(frame: THREE.Object3D, animationClip: THREE.AnimationClip | null) {
+        if (this.frameOccluder) {
+            this.group.remove(this.frameOccluder);
+            this.frameOccluder = null;
+        }
+        if (this.occluderMixer) {
+            this.occluderMixer.stopAllAction();
+            this.occluderMixer = null;
+            this.occluderAction = null;
+        }
+
+        const occluder = frame.clone(true);
+        occluder.renderOrder = -4; // after mask (-10), before splat (0)
+
+        // Keep transforms consistent with visible frame
+        occluder.position.copy(frame.position);
+        occluder.rotation.copy(frame.rotation);
+        occluder.scale.copy(frame.scale);
+
+        const occluderMat = new THREE.MeshBasicMaterial({
+            color: 0x000000,
+            colorWrite: false,
+            depthWrite: true,
+            depthTest: true,
+            side: THREE.DoubleSide,
+        });
+
+        occluder.traverse((child: any) => {
+            if (!child.isMesh) return;
+            child.renderOrder = -4;
+            child.material = occluderMat;
+        });
+
+        this.frameOccluder = occluder;
+        this.group.add(this.frameOccluder);
+
+        // Keep occluder in sync with door animation so it doesn't "stay closed" and block the portal.
+        if (animationClip) {
+            this.occluderMixer = new THREE.AnimationMixer(this.frameOccluder);
+            const action = this.occluderMixer.clipAction(animationClip);
+            action.setLoop(THREE.LoopOnce, 1);
+            action.clampWhenFinished = true;
+            action.timeScale = 1.0;
+            action.reset();
+            action.stop();
+            this.occluderAction = action;
+        }
     }
 
     public place(position: THREE.Vector3, camera: THREE.Camera) {
@@ -216,6 +275,9 @@ export class PortalSystem {
         targetPos.y = position.y; // Keep target on same level as portal
 
         this.group.lookAt(targetPos);
+        // NOTE: THREE.Object3D.lookAt makes the object's -Z axis point at target.
+        // For our portal conventions (and existing inside/outside logic), we want +Z to face the camera.
+        this.group.rotateY(Math.PI);
 
         // Play Door Animation if available
         this.playDoorAnimation();
@@ -226,6 +288,10 @@ export class PortalSystem {
             this.storedAction.reset();
             this.storedAction.play();
         }
+        if (this.occluderAction) {
+            this.occluderAction.reset();
+            this.occluderAction.play();
+        }
     }
 
     public update(camera: THREE.Camera) {
@@ -233,13 +299,16 @@ export class PortalSystem {
         if (this.mixer) {
             this.mixer.update(0.016); // Approximate delta time (60fps)
         }
+        if (this.occluderMixer) {
+            this.occluderMixer.update(0.016); // Keep depth occluder in lockstep with door
+        }
 
         if (!this.group.visible || !this.splatMesh) return;
 
         // Calculate local position of camera relative to the portal group
         // We need to convert camera world position to group local space
         const localPos = new THREE.Vector3();
-        localPos.copy(camera.position);
+        camera.getWorldPosition(localPos);
         this.group.worldToLocal(localPos);
 
         // State Machine with Hysteresis
@@ -255,6 +324,7 @@ export class PortalSystem {
                 // No, in WebXR, real world is background.
                 // But we don't want Hider Walls to block the splat when we look back?
                 if (this.hiderWalls) this.hiderWalls.visible = false;
+                if (this.frameOccluder) this.frameOccluder.visible = false;
             }
         } else if (localPos.z > 0.1) {
              if (this.isInside) {
@@ -262,6 +332,7 @@ export class PortalSystem {
                  this.setSplatStencil(true);
                  // Outside: Show Hider Walls to clean up edges
                  if (this.hiderWalls) this.hiderWalls.visible = true;
+                 if (this.frameOccluder) this.frameOccluder.visible = true;
              }
         }
     }
@@ -316,7 +387,21 @@ export class PortalSystem {
             
             if (this.splatMesh) {
                 this.splatMesh.frustumCulled = false;
-                this.splatMesh.renderOrder = 1;
+                // Render after depth occluders, before visible frame
+                this.splatMesh.renderOrder = 0;
+
+                // Ensure splat content sits *behind* the portal plane (z <= 0 in portal local),
+                // otherwise points that protrude forward can pass depth tests and "leak" through the frame.
+                // We compute a conservative offset from the splat bounds and clamp it to avoid extreme jumps.
+                const bounds = new THREE.Box3().setFromObject(this.splatMesh);
+                const frontMostZ = bounds.max.z;
+                if (Number.isFinite(frontMostZ) && this.viewer) {
+                    const margin = 0.08;
+                    const rawOffset = -(Math.max(0, frontMostZ) + margin);
+                    const clampedOffset = THREE.MathUtils.clamp(rawOffset, -2.0, -0.05);
+                    this.viewer.position.z = clampedOffset;
+                }
+
                 this.setSplatStencil(!this.isInside);
             }
         }).catch(err => {

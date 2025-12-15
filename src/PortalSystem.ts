@@ -34,10 +34,10 @@ export class PortalSystem {
             depthWrite: false, // Do not write to depth (stencil-only)
             depthTest: false,  // Must always write stencil (avoid depth ordering issues)
             side: THREE.DoubleSide, // WebXR portals often face "backwards" due to lookAt using -Z
-            stencilWrite: true,
-            stencilRef: 1,
-            stencilFunc: THREE.AlwaysStencilFunc, // Always pass stencil test
-            stencilZPass: THREE.ReplaceStencilOp, // Replace stencil value with 1
+            // NOTE: We intentionally do NOT rely on stencil for WebXR portability.
+            // Many WebXR runtimes (especially iOS) do not provide a stencil buffer in the XR framebuffer,
+            // which makes "stencilFunc = Equal" silently fail and hides the splat completely.
+            stencilWrite: false,
         });
 
         this.mask = new THREE.Mesh(maskGeo, maskMat);
@@ -350,22 +350,14 @@ export class PortalSystem {
         });
     }
     
-    private setSplatStencil(enable: boolean) {
+    private setSplatStencil(_enable: boolean) {
         if (!this.splatMesh) return;
         this.splatMesh.traverse((child: any) => {
             if (child.isMesh && child.material) {
-                child.material.stencilWrite = enable;
-                if (enable) {
-                    // Only draw where stencil value is 1 (where the mask is)
-                    child.material.stencilFunc = THREE.EqualStencilFunc;
-                    child.material.stencilRef = 1;
-                    child.material.stencilOp = THREE.KeepStencilOp;
-                    child.material.stencilFail = THREE.KeepStencilOp;
-                    child.material.stencilZFail = THREE.KeepStencilOp;
-                } else {
-                    // If disabled (inside portal), just draw everything
-                     child.material.stencilWrite = false;
-                }
+                // WebXR-portable portal: do NOT depend on stencil. We use HiderWalls depth occlusion instead
+                // (8thwall-style). This avoids "splat disappears" on XR framebuffers without a stencil buffer.
+                child.material.stencilWrite = false;
+                child.material.stencilFunc = THREE.AlwaysStencilFunc;
             }
         });
     }

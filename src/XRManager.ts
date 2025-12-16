@@ -18,7 +18,8 @@ export class XRManager {
     // Config for scenes
     private readonly SCENES = {
         store: 'https://glb.keithhe.com/ar/door/store-hywbtsc9s9.spz',
-        hall: 'https://glb.keithhe.com/ar/spz/cathulu_hall.spz',
+        // NOTE: correct spelling; `cathulu_hall.spz` is 404.
+        hall: 'https://glb.keithhe.com/ar/spz/cthulhu_hall.spz',
         town: 'https://glb.keithhe.com/ar/spz/ancient_town.spz',
         planet: 'https://glb.keithhe.com/ar/spz/planet.spz'
     };
@@ -110,26 +111,46 @@ export class XRManager {
         const cards = document.querySelectorAll('.scene-card');
         const selectionScreen = document.getElementById('scene-selection-screen');
         const loadingScreen = document.getElementById('loading-screen');
+        const loadingText = loadingScreen?.querySelector('.loading-text') as HTMLElement | null;
         const arUi = document.getElementById('ar-ui');
         const sceneSelector = document.getElementById('scene-selector') as HTMLSelectElement;
 
         cards.forEach(card => {
-            card.addEventListener('click', () => {
+            card.addEventListener('click', async () => {
                 const sceneKey = card.getAttribute('data-scene');
                 if (sceneKey) {
                     // Show Loading
                     if (selectionScreen) selectionScreen.style.display = 'none';
                     if (loadingScreen) loadingScreen.style.display = 'flex';
+                    if (loadingText) loadingText.textContent = '平行宇宙正在加载中...';
 
                     // Update internal state and AR UI selector
                     if (sceneSelector) sceneSelector.value = sceneKey;
 
                     // Load Splat
-                    this.handleSceneChange(sceneKey).then(() => {
+                    try {
+                        await this.handleSceneChange(sceneKey);
                         // On Success
                         if (loadingScreen) loadingScreen.style.display = 'none';
                         if (arUi) arUi.style.display = 'block';
-                    });
+                    } catch (err) {
+                        console.error('[XRManager] Scene load failed:', err);
+                        if (loadingText) {
+                            const msg = err instanceof Error ? err.message : String(err);
+                            loadingText.textContent = `加载失败：${msg}\n点击返回`;
+                        }
+                        if (loadingScreen) {
+                            loadingScreen.onclick = () => {
+                                loadingScreen.style.display = 'none';
+                                // Return to selection
+                                if (selectionScreen) selectionScreen.style.display = 'flex';
+                                // Cleanup handler
+                                loadingScreen.onclick = null;
+                            };
+                        } else if (selectionScreen) {
+                            selectionScreen.style.display = 'flex';
+                        }
+                    }
                 }
             });
         });
@@ -138,9 +159,28 @@ export class XRManager {
     private setupUI() {
         const selector = document.getElementById('scene-selector') as HTMLSelectElement;
         if (selector) {
-            selector.addEventListener('change', (e) => {
+            selector.addEventListener('change', async (e) => {
                 const value = (e.target as HTMLSelectElement).value;
-                this.handleSceneChange(value);
+                const loadingScreen = document.getElementById('loading-screen');
+                const loadingText = loadingScreen?.querySelector('.loading-text') as HTMLElement | null;
+                if (loadingScreen) loadingScreen.style.display = 'flex';
+                if (loadingText) loadingText.textContent = '平行宇宙正在加载中...';
+                try {
+                    await this.handleSceneChange(value);
+                    if (loadingScreen) loadingScreen.style.display = 'none';
+                } catch (err) {
+                    console.error('[XRManager] Scene switch failed:', err);
+                    if (loadingText) {
+                        const msg = err instanceof Error ? err.message : String(err);
+                        loadingText.textContent = `切换失败：${msg}\n点击关闭`;
+                    }
+                    if (loadingScreen) {
+                        loadingScreen.onclick = () => {
+                            loadingScreen.style.display = 'none';
+                            loadingScreen.onclick = null;
+                        };
+                    }
+                }
             });
         }
     }

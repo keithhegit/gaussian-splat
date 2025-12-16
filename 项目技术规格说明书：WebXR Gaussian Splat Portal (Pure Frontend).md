@@ -82,6 +82,15 @@
 > | `openingOffsetX` | number (meters) | `0.05` | `-0.2–0.2` | 水平微调门洞与内容对齐，正数向右 |
 > | `debugPortal` | `0/1` | `0` | `0/1` | 开启 PortalDebug 输出（pad/fit/inside/outside 等） |
 >
+> ### 5.5 多场景资源（Scene URLs）
+>
+> | Scene Key | 名称 | URL |
+> | --- | --- | --- |
+> | `store` | Store | `https://glb.keithhe.com/ar/door/store-hywbtsc9s9.spz` |
+> | `hall` | Cthulhu Hall | `https://glb.keithhe.com/ar/spz/cthulhu_hall.spz` |
+> | `town` | Ancient Town | `https://glb.keithhe.com/ar/spz/ancient_town.spz` |
+> | `planet` | Planet | `https://glb.keithhe.com/ar/spz/planet.spz` |
+>
 > 推荐的稳定配置（已固化为默认）：
 >
 > - `?openingScale=0.75&openingOffsetX=0.05`

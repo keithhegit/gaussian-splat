@@ -81,28 +81,10 @@ export class PortalSystem {
         this.mask.renderOrder = 0;
         this.group.add(this.mask);
 
-        // Determine Assets URLs
-        // Priority:
-        // 1. Full URL from Env Var (VITE_SPLAT_URL / VITE_DOOR_URL)
-        // 2. Constructed from VITE_ASSETS_URL + Default Filename
-        // 3. Default CDN URLs (Hardcoded fallback)
-        
-        const DEFAULT_SPLAT_URL = 'https://glb.keithhe.com/ar/door/store-hywbtsc9s9.spz';
+        // Determine Door URL (splat URL is chosen by the user on the entry screen and loaded on-demand).
         const DEFAULT_DOOR_URL = 'https://glb.keithhe.com/ar/door/door-84s5k3c8k4.glb';
 
-        let splatUrl = import.meta.env.VITE_SPLAT_URL;
         let doorUrl = import.meta.env.VITE_DOOR_URL;
-
-        // If specific URLs are not set, try to construct from ASSETS_URL or use defaults
-        if (!splatUrl) {
-            const baseUrl = import.meta.env.VITE_ASSETS_URL;
-            if (baseUrl) {
-                const slash = baseUrl.endsWith('/') ? '' : '/';
-                splatUrl = `${baseUrl}${slash}store.spz`; // Fallback to standard name if using generic asset base
-            } else {
-                splatUrl = DEFAULT_SPLAT_URL;
-            }
-        }
 
         if (!doorUrl) {
             const baseUrl = import.meta.env.VITE_ASSETS_URL;
@@ -113,8 +95,7 @@ export class PortalSystem {
                 doorUrl = DEFAULT_DOOR_URL;
             }
         }
-        
-        console.log(`[PortalSystem] Loading Splat from: ${splatUrl}`);
+
         console.log(`[PortalSystem] Loading Door from: ${doorUrl}`);
         if (this.debugPortalEnabled) {
             console.log('[PortalDebug][boot]', {

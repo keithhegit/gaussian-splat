@@ -41,8 +41,8 @@ export class PortalSystem {
     // We keep the portal pivot stable (center-bottom), but align the *content* to the bottom-left edge.
     private readonly portalAnchor: 'centerBottom' | 'bottomLeft' = 'bottomLeft';
     // Shrink the portal OPENING (mask) relative to current baseline so it fits inside the frame.
-    // Default is 0.7 (user measured), but can be overridden via URL: `?openingScale=0.7`
-    private readonly portalOpeningScaleDefault = 0.7;
+    // Default is 0.75 (user verified), but can be overridden via URL: `?openingScale=0.1..1.0`
+    private readonly portalOpeningScaleDefault = 0.75;
     // Match 88a38b7 convention:
     // - Outside (in front of portal): cameraLocal.z > +threshold
     // - Inside  (behind portal):      cameraLocal.z < -threshold
@@ -310,14 +310,14 @@ export class PortalSystem {
     private getPortalOpeningWidth() {
         const raw = this.urlParams?.get('openingScale');
         const scale = raw ? Number(raw) : this.portalOpeningScaleDefault;
-        const safeScale = Number.isFinite(scale) ? THREE.MathUtils.clamp(scale, 0.2, 1.2) : 1.0;
+        const safeScale = Number.isFinite(scale) ? THREE.MathUtils.clamp(scale, 0.1, 1.0) : 1.0;
         return this.portalOpeningWidth * safeScale;
     }
 
     private getPortalOpeningHeight() {
         const raw = this.urlParams?.get('openingScale');
         const scale = raw ? Number(raw) : this.portalOpeningScaleDefault;
-        const safeScale = Number.isFinite(scale) ? THREE.MathUtils.clamp(scale, 0.2, 1.2) : 1.0;
+        const safeScale = Number.isFinite(scale) ? THREE.MathUtils.clamp(scale, 0.1, 1.0) : 1.0;
         return this.portalOpeningHeight * safeScale;
     }
 
@@ -325,10 +325,12 @@ export class PortalSystem {
         if (this.portalAnchor !== 'bottomLeft') return 0;
         const raw = this.urlParams?.get('openingScale');
         const scale = raw ? Number(raw) : this.portalOpeningScaleDefault;
-        const safeScale = Number.isFinite(scale) ? THREE.MathUtils.clamp(scale, 0.2, 1.2) : 1.0;
+        const safeScale = Number.isFinite(scale) ? THREE.MathUtils.clamp(scale, 0.1, 1.0) : 1.0;
         const scaledWidth = this.portalOpeningWidth * safeScale;
-        // Keep original left edge fixed while shrinking => center shifts right by half the width delta.
-        return (this.portalOpeningWidth - scaledWidth) / 2;
+        // Keep original LEFT edge fixed while shrinking:
+        // leftEdge = center - width/2 should remain constant
+        // => center must shift LEFT by half the width delta
+        return -(this.portalOpeningWidth - scaledWidth) / 2;
     }
 
     private fitSplatToPortal(viewer: THREE.Object3D, splatRoot: THREE.Object3D) {

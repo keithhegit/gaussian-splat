@@ -43,6 +43,9 @@ export class PortalSystem {
     // Shrink the portal OPENING (mask) relative to current baseline so it fits inside the frame.
     // Default is 0.75 (user verified), but can be overridden via URL: `?openingScale=0.1..1.0`
     private readonly portalOpeningScaleDefault = 0.75;
+    // Fine-tune horizontal alignment (meters). Positive moves opening/content to the RIGHT.
+    // URL override: `?openingOffsetX=0.02` (clamped to [-0.20, 0.20])
+    private readonly portalOpeningOffsetXDefault = 0;
     // Match 88a38b7 convention:
     // - Outside (in front of portal): cameraLocal.z > +threshold
     // - Inside  (behind portal):      cameraLocal.z < -threshold
@@ -330,7 +333,13 @@ export class PortalSystem {
         // Keep original LEFT edge fixed while shrinking:
         // leftEdge = center - width/2 should remain constant
         // => center must shift LEFT by half the width delta
-        return -(this.portalOpeningWidth - scaledWidth) / 2;
+        const baseAnchorOffsetX = -(this.portalOpeningWidth - scaledWidth) / 2;
+
+        const overrideRaw = this.urlParams?.get('openingOffsetX');
+        const override = overrideRaw ? Number(overrideRaw) : this.portalOpeningOffsetXDefault;
+        const safeOverride = Number.isFinite(override) ? THREE.MathUtils.clamp(override, -0.2, 0.2) : 0;
+
+        return baseAnchorOffsetX + safeOverride;
     }
 
     private fitSplatToPortal(viewer: THREE.Object3D, splatRoot: THREE.Object3D) {

@@ -11,6 +11,7 @@ export class XRManager {
     private hitTestSource: any = null; // XRHitTestSource type definition might be missing in basic types
     private hitTestSourceRequested: boolean = false;
     private hasPlaced: boolean = false; // Flag for auto-placement
+    private isStartingSession: boolean = false;
     
     private portalSystem: PortalSystem;
     private controller: THREE.XRTargetRaySpace;
@@ -98,6 +99,16 @@ export class XRManager {
         const startButton = document.getElementById('start-ar') as HTMLButtonElement | null;
         const startError = document.getElementById('start-error') as HTMLElement | null;
 
+        // Keep UI in sync with XR session lifecycle.
+        this.renderer.xr.addEventListener('sessionstart', () => {
+            this.isStartingSession = false;
+            if (startPrompt) startPrompt.style.display = 'none';
+        });
+        this.renderer.xr.addEventListener('sessionend', () => {
+            this.isStartingSession = false;
+            if (startPrompt) startPrompt.style.display = 'flex';
+        });
+
         const handleShowStartError = (msg: string) => {
             console.error('[XRManager] AR start failed:', msg);
             if (!startError) return;
@@ -114,6 +125,13 @@ export class XRManager {
         const handleStartAR = async () => {
             handleHideStartError();
 
+            // Single-flight + avoid starting a second active session.
+            if (this.isStartingSession) return;
+            if (this.renderer.xr.getSession()) {
+                if (startPrompt) startPrompt.style.display = 'none';
+                return;
+            }
+
             const xr = (navigator as any)?.xr;
             console.log('[XRManager] UA:', navigator.userAgent);
             console.log('[XRManager] userActivation:', (navigator as any)?.userActivation);
@@ -125,6 +143,8 @@ export class XRManager {
                 return;
             }
 
+            this.isStartingSession = true;
+
             // Prefer direct requestSession from a trusted user gesture (fixes Android where synthetic click may fail).
             const sessionInit: any = {
                 requiredFeatures: ['hit-test'],
@@ -133,28 +153,45 @@ export class XRManager {
             };
 
             try {
-                const supported = await xr.isSessionSupported?.('immersive-ar');
-                console.log('[XRManager] isSessionSupported(immersive-ar):', supported);
+                const supportPromise = xr.isSessionSupported?.('immersive-ar');
+                if (supportPromise && typeof supportPromise.then === 'function') {
+                    supportPromise
+                        .then((supported: boolean) => {
+                            console.log('[XRManager] isSessionSupported(immersive-ar):', supported);
+                        })
+                        .catch((e: unknown) => {
+                            console.log('[XRManager] isSessionSupported check failed:', e);
+                        });
+                }
             } catch (e) {
                 console.log('[XRManager] isSessionSupported check failed:', e);
             }
 
             try {
                 const session = await xr.requestSession('immersive-ar', sessionInit);
-                await this.renderer.xr.setSession(session);
+                try {
+                    await this.renderer.xr.setSession(session);
+                } catch (setErr) {
+                    // Some runtimes already have a session active by the time we set it (or throw odd DOMExceptions).
+                    // Treat "second active session" as non-fatal.
+                    const name = (setErr as any)?.name;
+                    const msg = setErr instanceof Error ? setErr.message : String(setErr);
+                    const isAlreadyActive =
+                        name === 'InvalidStateError' || msg.includes('second active session') || msg.includes('Second active session');
+
+                    if (!isAlreadyActive) throw setErr;
+                    console.warn('[XRManager] setSession ignored (session already active):', setErr);
+                }
                 if (startPrompt) startPrompt.style.display = 'none';
                 return;
             } catch (err) {
-                console.error('[XRManager] requestSession failed, falling back to ARButton:', err);
-            }
-
-            // Fallback: try ARButton click (some runtimes/polyfills)
-            try {
-                arButton.click();
-                if (startPrompt) startPrompt.style.display = 'none';
-            } catch (err) {
                 const msg = err instanceof Error ? err.message : String(err);
+                console.error('[XRManager] requestSession failed:', err);
                 handleShowStartError(`无法启动 AR：${msg}`);
+                if (startPrompt) startPrompt.style.display = 'flex';
+            } finally {
+                // sessionstart event will also clear this; keep it safe in failure paths.
+                this.isStartingSession = false;
             }
         };
 

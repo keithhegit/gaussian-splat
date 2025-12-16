@@ -14,8 +14,8 @@
 >
 > - **Runtime**: 原生 **WebXR Device API** (不使用 8th Wall 或 AR.js)。
 > - **Core**: **Three.js** (r160+)。
-> - **Splat Engine**: **`@mkkellogg/gaussian-splats-3d`** (v0.4.1+)。
->   - *Critical*: 必须使用底层的 `SplatMesh` 或 `GaussianSplatMesh` 类集成到 Three.js 场景中。**严禁**使用该库自带的 `Viewer` 类（因为它会劫持 `requestAnimationFrame` 循环，导致 AR 失效）。
+> - **Splat Engine**: **`@mkkellogg/gaussian-splats-3d`**。
+>   - 当前稳定实现使用 `DropInViewer` 作为 Three.js 的一个 `Group` 挂载到 `PortalGroup` 下，并由 `XRManager` 的 render loop 驱动（不使用其内部 RAF loop）。
 > - **Build**: **Vite** + **TypeScript** (Vanilla, 无框架开销)。
 > - **Platform**: Android (Chrome) 优先。iOS 需降级提示使用 WebXR Viewer。
 > - **Asset Logic**:
@@ -37,8 +37,8 @@
 > └── PortalGroup (THREE.Group) -> [放置在 AR 地面]
 >     ├── PortalMask (Mesh)     -> [不可见] 1x2m 平面, 写入 Stencil
 >     ├── DoorFrame (Mesh)      -> [可见] GLB 模型, 门框
->     └── SplatContainer (Group)-> [虚拟世界容器] 用于调整 Splat 的位置/旋转
->         └── SplatMesh         -> [内容] 高斯泼溅模型
+>     └── SplatContainer (Group)-> [虚拟世界容器] 当前实现为 `DropInViewer`
+>         └── SplatMesh         -> [内容] `viewer.splatMesh`
 > ```
 >
 > ### 2.2 渲染层级表 (The Golden Rules)
@@ -56,13 +56,52 @@
 > 系统需在每一帧检测用户位置，动态切换渲染模式：
 >
 > - **State A: Outside (门外)**
->   - *条件*: 相机位于门平面之前 (`Local Z > 0.1`).
+>   - *条件*: 相机位于门平面之前（当前稳定实现：`Local Z > +0.12`，并带 hysteresis）。
 >   - *行为*: **启用** Splat 的 Stencil Test (`stencilFunc = EQUAL`).
 >   - *效果*: 只能通过门洞看到虚拟世界。
 > - **State B: Inside (门内)**
->   - *条件*: 相机位于门平面之后 (`Local Z < -0.1`).
+>   - *条件*: 相机位于门平面之后（当前稳定实现：`Local Z < -0.12`，并带 hysteresis）。
 >   - *行为*: **禁用** Splat 的 Stencil Test (`stencilWrite = false`).
 >   - *效果*: 虚拟世界全屏渲染，用户完全沉浸。
+> ## 5. 当前稳定版本（new_dimension 合入 main 后）
+>
+> ### 5.1 WebXR 相机获取（重要）
+>
+> WebXR 下 base camera 不一定等价于真实 viewer pose。当前实现使用：
+>
+> - `xrCamera = renderer.xr.getCamera()`（ArrayCamera）
+> - `PortalSystem.update(xrCamera)` 内部取 `ArrayCamera.cameras[0]` 做 `worldToLocal` 判定
+>
+> ### 5.2 门洞尺寸/对齐参数（URL Query）
+>
+> 你可以通过 URL 参数实时微调（无需重新构建），用于适配不同 door.glb 与 splat 资产。
+>
+> | 参数 | 类型 | 默认值 | 范围 | 作用 |
+> | --- | --- | --- | --- | --- |
+> | `openingScale` | number | `0.75` | `0.1–1.0` | 缩放**门洞开口**（Mask / 裁剪区域）尺寸 |
+> | `openingOffsetX` | number (meters) | `0.05` | `-0.2–0.2` | 水平微调门洞与内容对齐，正数向右 |
+> | `debugPortal` | `0/1` | `0` | `0/1` | 开启 PortalDebug 输出（pad/fit/inside/outside 等） |
+>
+> 推荐的稳定配置（已固化为默认）：
+>
+> - `?openingScale=0.75&openingOffsetX=0.05`
+>
+> ### 5.3 Fit（Splat 内容对齐）
+>
+> 当前实现会：
+>
+> - 计算 `splatMesh` bounds
+> - 直接对 `splatMesh` 做 `scale/position`（避免部分运行时忽略 parent group scale）
+> - 底部对齐到门槛（Y 对齐 OK）
+> - X 方向按 door.glb “偏左”特点使用 bottom-left anchor，并可通过 `openingOffsetX` 微调
+>
+> ### 5.4 Debug / 版本确认
+>
+> - vConsole 会输出 `[Build] <id>` 用于确认当前跑的是哪次构建
+> - `?debugPortal=1` 会输出：
+>   - `[PortalDebug][boot]` / `[PortalDebug][pad]` / `[PortalDebug][fit]`
+> - 也可以在 vConsole 输入：
+>   - `window.__portalDebug.dump()`
 >   - *Note*: 0.1m 的缓冲区 (Hysteresis) 用于防止在门口画面闪烁。
 >
 > ------

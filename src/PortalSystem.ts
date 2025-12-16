@@ -45,7 +45,8 @@ export class PortalSystem {
     private readonly portalOpeningScaleDefault = 0.75;
     // Fine-tune horizontal alignment (meters). Positive moves opening/content to the RIGHT.
     // URL override: `?openingOffsetX=0.02` (clamped to [-0.20, 0.20])
-    private readonly portalOpeningOffsetXDefault = 0;
+    // Stable default (user-verified): +0.05m
+    private readonly portalOpeningOffsetXDefault = 0.05;
     // Match 88a38b7 convention:
     // - Outside (in front of portal): cameraLocal.z > +threshold
     // - Inside  (behind portal):      cameraLocal.z < -threshold

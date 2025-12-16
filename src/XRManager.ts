@@ -44,6 +44,9 @@ export class XRManager {
         this.renderer.setPixelRatio(window.devicePixelRatio);
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.xr.enabled = true;
+        // WebXR Viewer / iOS runtimes may not support `local-floor`. Use `local` to avoid session failure.
+        // This matches the stable behavior we want (hit-test + portal placement) without requiring floor alignment.
+        this.renderer.xr.setReferenceSpaceType('local');
         document.body.appendChild(this.renderer.domElement);
 
         // 4. Setup Lighting
@@ -168,6 +171,8 @@ export class XRManager {
             }
 
             try {
+                // Ensure we don't request an unsupported reference space type (e.g. `local-floor` on WebXR Viewer).
+                this.renderer.xr.setReferenceSpaceType('local');
                 const session = await xr.requestSession('immersive-ar', sessionInit);
                 try {
                     await this.renderer.xr.setSession(session);
@@ -179,7 +184,17 @@ export class XRManager {
                     const isAlreadyActive =
                         name === 'InvalidStateError' || msg.includes('second active session') || msg.includes('Second active session');
 
-                    if (!isAlreadyActive) throw setErr;
+                    const isLocalFloorUnsupported =
+                        msg.includes('local-floor reference space is not supported') ||
+                        msg.includes('local-floor') && msg.includes('not supported');
+
+                    if (!isAlreadyActive && isLocalFloorUnsupported) {
+                        // Retry with local reference space.
+                        this.renderer.xr.setReferenceSpaceType('local');
+                        await this.renderer.xr.setSession(session);
+                    } else if (!isAlreadyActive) {
+                        throw setErr;
+                    }
                     console.warn('[XRManager] setSession ignored (session already active):', setErr);
                 }
                 if (startPrompt) startPrompt.style.display = 'none';
@@ -347,21 +362,26 @@ export class XRManager {
             const session = this.renderer.xr.getSession() as any;
 
             if (this.hitTestSourceRequested === false && session) {
-                session.requestReferenceSpace('viewer').then((referenceSpace: any) => {
-                    session.requestHitTestSource({ space: referenceSpace }).then((source: any) => {
+                // Mark as requested immediately to avoid re-requesting each frame on failures (prevents TypeError spam).
+                this.hitTestSourceRequested = true;
+                session
+                    .requestReferenceSpace('viewer')
+                    .then((viewerSpace: any) => session.requestHitTestSource({ space: viewerSpace }))
+                    .then((source: any) => {
                         this.hitTestSource = source;
+                    })
+                    .catch((err: unknown) => {
+                        console.warn('[XRManager] Hit-test init failed (continuing without reticle):', err);
+                        this.hitTestSource = null;
                     });
-                });
 
                 session.addEventListener('end', () => {
                     this.hitTestSourceRequested = false;
                     this.hitTestSource = null;
                 });
-
-                this.hitTestSourceRequested = true;
             }
 
-            if (this.hitTestSource && referenceSpace) {
+            if (this.hitTestSource && referenceSpace && typeof frame.getHitTestResults === 'function') {
                 const hitTestResults = frame.getHitTestResults(this.hitTestSource);
 
                 if (hitTestResults.length > 0) {

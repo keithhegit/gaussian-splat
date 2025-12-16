@@ -1,5 +1,7 @@
 /// <reference types="vite/client" />
 
+declare const __BUILD_ID__: string;
+
 interface ImportMetaEnv {
     readonly VITE_ASSETS_URL: string;
     readonly VITE_SPLAT_URL: string;

@@ -105,6 +105,16 @@ export class PortalSystem {
         
         console.log(`[PortalSystem] Loading Splat from: ${splatUrl}`);
         console.log(`[PortalSystem] Loading Door from: ${doorUrl}`);
+        if (this.debugPortalEnabled) {
+            console.log('[PortalDebug][boot]', {
+                href: typeof window !== 'undefined' ? window.location.href : null,
+                // @ts-ignore
+                buildId: typeof __BUILD_ID__ !== 'undefined' ? __BUILD_ID__ : null,
+                opening: { w: this.getPortalOpeningWidth(), h: this.getPortalOpeningHeight() },
+                padding: this.portalFitPadding,
+                anchor: this.portalAnchor,
+            });
+        }
 
         // Viewer (splat container) - we will load the splat via XRManager (scene selection)
         this.createFreshViewer();
@@ -270,13 +280,24 @@ export class PortalSystem {
                 // Start in OUTSIDE mode (clipped to the door opening)
                 this.isInside = false;
                 this.setSplatStencil(true);
-                this.fitSplatToPortal(viewer, this.splatMesh);
+                // Gaussian splat bounds can finalize a tick later; fit multiple times.
+                this.applyDeferredFit(viewer, this.splatMesh);
             }
         }).catch(err => {
             this.isLoading = false;
             console.error('[PortalSystem] Failed to load splat:', err);
             throw err;
         });
+    }
+
+    private applyDeferredFit(viewer: THREE.Object3D, splatRoot: THREE.Object3D) {
+        this.fitSplatToPortal(viewer, splatRoot);
+
+        if (typeof requestAnimationFrame !== 'undefined') {
+            requestAnimationFrame(() => this.fitSplatToPortal(viewer, splatRoot));
+        }
+
+        setTimeout(() => this.fitSplatToPortal(viewer, splatRoot), 200);
     }
     
     private getPortalOpeningWidth() {
@@ -288,6 +309,17 @@ export class PortalSystem {
     }
 
     private fitSplatToPortal(viewer: THREE.Object3D, splatRoot: THREE.Object3D) {
+        // IMPORTANT:
+        // Some gaussian-splats-3d setups effectively ignore parent scale.
+        // Apply transforms directly to the splat root for guaranteed effect.
+        viewer.scale.setScalar(1);
+        viewer.position.set(0, 0, this.viewerBehindDoorZ);
+
+        // Reset splat transforms to compute stable bounds
+        splatRoot.scale.setScalar(1);
+        splatRoot.position.set(0, 0, 0);
+        splatRoot.updateMatrixWorld(true);
+
         const bounds = new THREE.Box3().setFromObject(splatRoot);
         const size = new THREE.Vector3();
         bounds.getSize(size);
@@ -302,25 +334,33 @@ export class PortalSystem {
         if (!Number.isFinite(scaleToFit) || scaleToFit <= 0) return;
 
         const clampedScale = THREE.MathUtils.clamp(scaleToFit, 0.01, 50);
-        viewer.scale.setScalar(clampedScale);
+        splatRoot.scale.setScalar(clampedScale);
+
+        if (this.debugPortalEnabled) {
+            console.log('[PortalDebug][fit]', {
+                opening: { w: openingWidth, h: openingHeight },
+                padding: this.portalFitPadding,
+                size: { x: size.x, y: size.y, z: size.z },
+                scale: clampedScale,
+            });
+        }
 
         // Align content inside the opening.
-        // Note: viewer offsets are scaled-space, so multiply by clampedScale.
+        // Note: splatRoot offsets are scaled-space, so multiply by clampedScale.
         const bottomY = bounds.min.y;
-        viewer.position.y = -bottomY * clampedScale;
+        splatRoot.position.y = -bottomY * clampedScale;
 
         if (this.portalAnchor === 'bottomLeft') {
             // Keep the *left edge* aligned to the opening's left edge, and bottom to y=0.
             // Opening left edge is at x = -openingWidth/2 (pivot is center-bottom).
             const openingLeftX = -openingWidth / 2;
             const contentLeftX = bounds.min.x;
-            viewer.position.x = openingLeftX - contentLeftX * clampedScale;
+            splatRoot.position.x = openingLeftX - contentLeftX * clampedScale;
         } else {
             // Default: center in X
             const centerX = (bounds.min.x + bounds.max.x) / 2;
-            viewer.position.x = -centerX * clampedScale;
+            splatRoot.position.x = -centerX * clampedScale;
         }
-        viewer.position.z = this.viewerBehindDoorZ;
     }
 
     private setSplatStencil(enable: boolean) {
@@ -354,6 +394,7 @@ export class PortalSystem {
         this.lastDebugLogAtMs = now;
 
         const viewer = this.viewer;
+        console.log('[PortalDebug][pad]', this.portalFitPadding);
         console.log('[PortalDebug]', {
             context,
             isInside: this.isInside,

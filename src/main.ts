@@ -4,6 +4,9 @@ import VConsole from 'vconsole';
 // Initialize vConsole for mobile debugging
 const vConsole = new VConsole();
 console.log('vConsole initialized version:', vConsole.version);
+console.log('[Build]', __BUILD_ID__);
+// @ts-ignore
+window.__buildId = __BUILD_ID__;
 
 // Style setup for UI
 const style = document.createElement('style');

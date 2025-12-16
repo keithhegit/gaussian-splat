@@ -14,6 +14,9 @@ export class XRManager {
     
     private portalSystem: PortalSystem;
     private controller: THREE.XRTargetRaySpace;
+    // (kept for future platform-specific UI, but unused right now)
+    // private readonly isAndroid: boolean =
+    //     typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
 
     // Config for scenes
     private readonly SCENES = {
@@ -88,15 +91,79 @@ export class XRManager {
         document.body.appendChild(arButton);
 
         // Custom Start Logic
-        const startPrompt = document.getElementById('start-prompt');
-        if (startPrompt) {
-            startPrompt.addEventListener('click', () => {
-                // Programmatically trigger AR session
-                // We simulate a click on the hidden ARButton or call logic directly if exposed
-                // Since ARButton logic is internal, we can try to click it
+        const startPrompt = document.getElementById('start-prompt') as HTMLElement | null;
+        const startButton = document.getElementById('start-ar') as HTMLButtonElement | null;
+        const startError = document.getElementById('start-error') as HTMLElement | null;
+
+        const handleShowStartError = (msg: string) => {
+            console.error('[XRManager] AR start failed:', msg);
+            if (!startError) return;
+            startError.style.display = 'block';
+            startError.textContent = msg;
+        };
+
+        const handleHideStartError = () => {
+            if (!startError) return;
+            startError.style.display = 'none';
+            startError.textContent = '';
+        };
+
+        const handleStartAR = async () => {
+            handleHideStartError();
+
+            const xr = (navigator as any)?.xr;
+            console.log('[XRManager] UA:', navigator.userAgent);
+            console.log('[XRManager] userActivation:', (navigator as any)?.userActivation);
+
+            if (!xr) {
+                handleShowStartError(
+                    'WebXR 不可用。\nAndroid: 请确认使用 HTTPS、Chrome 支持 WebXR，并安装 Google Play Services for AR。\niOS: 请使用 WebXR Viewer。'
+                );
+                return;
+            }
+
+            // Prefer direct requestSession from a trusted user gesture (fixes Android where synthetic click may fail).
+            const sessionInit: any = {
+                requiredFeatures: ['hit-test'],
+                optionalFeatures: ['dom-overlay'],
+                domOverlay: { root: overlay! },
+            };
+
+            try {
+                const supported = await xr.isSessionSupported?.('immersive-ar');
+                console.log('[XRManager] isSessionSupported(immersive-ar):', supported);
+            } catch (e) {
+                console.log('[XRManager] isSessionSupported check failed:', e);
+            }
+
+            try {
+                const session = await xr.requestSession('immersive-ar', sessionInit);
+                await this.renderer.xr.setSession(session);
+                if (startPrompt) startPrompt.style.display = 'none';
+                return;
+            } catch (err) {
+                console.error('[XRManager] requestSession failed, falling back to ARButton:', err);
+            }
+
+            // Fallback: try ARButton click (some runtimes/polyfills)
+            try {
                 arButton.click();
-                startPrompt.style.display = 'none';
+                if (startPrompt) startPrompt.style.display = 'none';
+            } catch (err) {
+                const msg = err instanceof Error ? err.message : String(err);
+                handleShowStartError(`无法启动 AR：${msg}`);
+            }
+        };
+
+        if (startButton) {
+            startButton.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                void handleStartAR();
             });
+        } else if (startPrompt) {
+            // Safety fallback
+            startPrompt.addEventListener('click', () => void handleStartAR());
         }
 
         // 9. Event Listeners
@@ -109,49 +176,59 @@ export class XRManager {
 
     private setupSceneSelection() {
         const cards = document.querySelectorAll('.scene-card');
+        const actions = document.querySelectorAll('.scene-action');
         const selectionScreen = document.getElementById('scene-selection-screen');
         const loadingScreen = document.getElementById('loading-screen');
         const loadingText = loadingScreen?.querySelector('.loading-text') as HTMLElement | null;
         const arUi = document.getElementById('ar-ui');
         const sceneSelector = document.getElementById('scene-selector') as HTMLSelectElement;
 
+        const handlePickScene = async (sceneKey: string) => {
+            if (!sceneKey) return;
+
+            // Show Loading
+            if (selectionScreen) selectionScreen.style.display = 'none';
+            if (loadingScreen) loadingScreen.style.display = 'flex';
+            if (loadingText) loadingText.textContent = '平行宇宙正在加载中...';
+
+            // Update internal state and AR UI selector
+            if (sceneSelector) sceneSelector.value = sceneKey;
+
+            try {
+                await this.handleSceneChange(sceneKey);
+                if (loadingScreen) loadingScreen.style.display = 'none';
+                if (arUi) arUi.style.display = 'block';
+            } catch (err) {
+                console.error('[XRManager] Scene load failed:', err);
+                if (loadingText) {
+                    const msg = err instanceof Error ? err.message : String(err);
+                    loadingText.textContent = `加载失败：${msg}\n点击返回`;
+                }
+                if (loadingScreen) {
+                    loadingScreen.onclick = () => {
+                        loadingScreen.style.display = 'none';
+                        if (selectionScreen) selectionScreen.style.display = 'flex';
+                        loadingScreen.onclick = null;
+                    };
+                } else if (selectionScreen) {
+                    selectionScreen.style.display = 'flex';
+                }
+            }
+        };
+
         cards.forEach(card => {
             card.addEventListener('click', async () => {
-                const sceneKey = card.getAttribute('data-scene');
-                if (sceneKey) {
-                    // Show Loading
-                    if (selectionScreen) selectionScreen.style.display = 'none';
-                    if (loadingScreen) loadingScreen.style.display = 'flex';
-                    if (loadingText) loadingText.textContent = '平行宇宙正在加载中...';
+                const sceneKey = card.getAttribute('data-scene') ?? '';
+                await handlePickScene(sceneKey);
+            });
+        });
 
-                    // Update internal state and AR UI selector
-                    if (sceneSelector) sceneSelector.value = sceneKey;
-
-                    // Load Splat
-                    try {
-                        await this.handleSceneChange(sceneKey);
-                        // On Success
-                        if (loadingScreen) loadingScreen.style.display = 'none';
-                        if (arUi) arUi.style.display = 'block';
-                    } catch (err) {
-                        console.error('[XRManager] Scene load failed:', err);
-                        if (loadingText) {
-                            const msg = err instanceof Error ? err.message : String(err);
-                            loadingText.textContent = `加载失败：${msg}\n点击返回`;
-                        }
-                        if (loadingScreen) {
-                            loadingScreen.onclick = () => {
-                                loadingScreen.style.display = 'none';
-                                // Return to selection
-                                if (selectionScreen) selectionScreen.style.display = 'flex';
-                                // Cleanup handler
-                                loadingScreen.onclick = null;
-                            };
-                        } else if (selectionScreen) {
-                            selectionScreen.style.display = 'flex';
-                        }
-                    }
-                }
+        actions.forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const sceneKey = (btn as HTMLElement).getAttribute('data-scene') ?? '';
+                await handlePickScene(sceneKey);
             });
         });
     }

@@ -15,35 +15,104 @@
     <div id="overlay">
         <!-- Step 1: Scene Selection -->
         <div id="scene-selection-screen">
-            <h1 class="title">WebXR Portal</h1>
-            <div class="scene-grid">
-                <button class="scene-card" data-scene="store">
-                    <div class="scene-name">Store</div>
-                </button>
-                <button class="scene-card" data-scene="hall">
-                    <div class="scene-name">Cthulhu Hall</div>
-                </button>
-                <button class="scene-card" data-scene="town">
-                    <div class="scene-name">Ancient Town</div>
-                </button>
-                <button class="scene-card" data-scene="planet">
-                    <div class="scene-name">Planet</div>
-                </button>
+            <div class="ui-topbar">
+                <img
+                    class="ui-logo"
+                    src="https://pub-c98d5902eedf42f6a9765dfad981fd88.r2.dev/Icon/123p_ugn_ar_logo.png"
+                    alt="Ugenie AR"
+                    loading="eager"
+                    decoding="async"
+                />
+                <div class="ui-title">WebXR Portal</div>
+            </div>
+
+            <div class="ui-carousel" id="scene-carousel" aria-label="Scene selection carousel">
+                <div class="scene-card is-active" data-scene="store" style="--hue: 0deg;">
+                    <div class="scene-card__content">
+                        <div class="scene-card__tags">
+                            <span class="tag">AR</span>
+                            <span class="tag">Store</span>
+                            <span class="tag">Warm</span>
+                        </div>
+                        <div class="scene-card__title">Store</div>
+                        <div class="scene-card__desc">A cozy aisle walk-through. Bright shelves, tight space, instant immersion.</div>
+                        <div class="scene-card__actions">
+                            <button class="scene-action" data-scene="store" data-action="browse" type="button">Browse</button>
+                            <button class="scene-action" data-scene="store" data-action="enter" type="button">Enter</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="scene-card" data-scene="hall" style="--hue: 135deg;">
+                    <div class="scene-card__content">
+                        <div class="scene-card__tags">
+                            <span class="tag">3D</span>
+                            <span class="tag">Myth</span>
+                            <span class="tag">Dark</span>
+                        </div>
+                        <div class="scene-card__title">Cthulhu Hall</div>
+                        <div class="scene-card__desc">Enter a moody hall with cosmic vibes. High contrast, dramatic depth.</div>
+                        <div class="scene-card__actions">
+                            <button class="scene-action" data-scene="hall" data-action="summon" type="button">Summon</button>
+                            <button class="scene-action" data-scene="hall" data-action="dare" type="button">Dare</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="scene-card" data-scene="town" style="--hue: 35deg;">
+                    <div class="scene-card__content">
+                        <div class="scene-card__tags">
+                            <span class="tag">Explore</span>
+                            <span class="tag">Town</span>
+                            <span class="tag">Day</span>
+                        </div>
+                        <div class="scene-card__title">Ancient Town</div>
+                        <div class="scene-card__desc">A sunlit street with texture-rich details. Walk in and look around.</div>
+                        <div class="scene-card__actions">
+                            <button class="scene-action" data-scene="town" data-action="stroll" type="button">Stroll</button>
+                            <button class="scene-action" data-scene="town" data-action="explore" type="button">Explore</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="scene-card" data-scene="planet" style="--hue: 240deg;">
+                    <div class="scene-card__content">
+                        <div class="scene-card__tags">
+                            <span class="tag">Space</span>
+                            <span class="tag">Orbit</span>
+                            <span class="tag">Cold</span>
+                        </div>
+                        <div class="scene-card__title">Planet</div>
+                        <div class="scene-card__desc">A wide, open space scene. Best for larger rooms and slow movement.</div>
+                        <div class="scene-card__actions">
+                            <button class="scene-action" data-scene="planet" data-action="launch" type="button">Launch</button>
+                            <button class="scene-action" data-scene="planet" data-action="orbit" type="button">Orbit</button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
         <!-- Step 2: Loading Screen -->
         <div id="loading-screen" style="display: none;">
-            <div class="loading-content">
-                <div class="spinner"></div>
-                <div class="loading-text">平行宇宙正在加载中...</div>
+            <div class="loading-splash" role="status" aria-live="polite">
+                <div class="loading-splash__shade"></div>
+                <div class="loading-splash__text">
+                    <div class="loading-text">平行宇宙正在加载中...</div>
+                    <div class="loading-subtext">Please wait</div>
+                </div>
             </div>
         </div>
 
         <!-- Step 3: AR View UI (Hidden initially) -->
         <div id="ar-ui" style="display: none;">
              <div id="start-prompt">
-                <div class="prompt-text">Tap Screen to Enter AR</div>
+                <div class="prompt-card">
+                    <div class="prompt-card__title">Ready to Enter AR</div>
+                    <div class="prompt-card__desc">Camera permission required. Tap to start.</div>
+                    <button id="start-ar" class="prompt-card__btn" type="button">Enter AR</button>
+                    <div id="start-error" class="prompt-card__error" style="display:none;"></div>
+                </div>
             </div>
              <!-- Scene selector available in AR too for switching -->
              <div id="ui-container">

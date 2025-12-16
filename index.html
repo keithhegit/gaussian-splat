@@ -27,23 +27,11 @@
             </div>
 
             <div class="ui-carousel" id="scene-carousel" aria-label="Scene selection carousel">
-                <div class="scene-card is-active" data-scene="store" style="--hue: 0deg;">
-                    <div class="scene-card__content">
-                        <div class="scene-card__tags">
-                            <span class="tag">AR</span>
-                            <span class="tag">Store</span>
-                            <span class="tag">Warm</span>
-                        </div>
-                        <div class="scene-card__title">Store</div>
-                        <div class="scene-card__desc">A cozy aisle walk-through. Bright shelves, tight space, instant immersion.</div>
-                        <div class="scene-card__actions">
-                            <button class="scene-action" data-scene="store" data-action="browse" type="button">Browse</button>
-                            <button class="scene-action" data-scene="store" data-action="enter" type="button">Enter</button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="scene-card" data-scene="hall" style="--hue: 135deg;">
+                <div
+                    class="scene-card is-active"
+                    data-scene="cthulhu_hall"
+                    style="--scene-bg: url('https://glb.keithhe.com/ar/spz/pic/cthulhu_hall.png'); --hue: 135deg;"
+                >
                     <div class="scene-card__content">
                         <div class="scene-card__tags">
                             <span class="tag">3D</span>
@@ -53,29 +41,17 @@
                         <div class="scene-card__title">Cthulhu Hall</div>
                         <div class="scene-card__desc">Enter a moody hall with cosmic vibes. High contrast, dramatic depth.</div>
                         <div class="scene-card__actions">
-                            <button class="scene-action" data-scene="hall" data-action="summon" type="button">Summon</button>
-                            <button class="scene-action" data-scene="hall" data-action="dare" type="button">Dare</button>
+                            <button class="scene-action" data-scene="cthulhu_hall" data-action="summon" type="button">Summon</button>
+                            <button class="scene-action" data-scene="cthulhu_hall" data-action="dare" type="button">Dare</button>
                         </div>
                     </div>
                 </div>
 
-                <div class="scene-card" data-scene="town" style="--hue: 35deg;">
-                    <div class="scene-card__content">
-                        <div class="scene-card__tags">
-                            <span class="tag">Explore</span>
-                            <span class="tag">Town</span>
-                            <span class="tag">Day</span>
-                        </div>
-                        <div class="scene-card__title">Ancient Town</div>
-                        <div class="scene-card__desc">A sunlit street with texture-rich details. Walk in and look around.</div>
-                        <div class="scene-card__actions">
-                            <button class="scene-action" data-scene="town" data-action="stroll" type="button">Stroll</button>
-                            <button class="scene-action" data-scene="town" data-action="explore" type="button">Explore</button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="scene-card" data-scene="planet" style="--hue: 240deg;">
+                <div
+                    class="scene-card"
+                    data-scene="planet"
+                    style="--scene-bg: url('https://glb.keithhe.com/ar/spz/pic/planet.png'); --hue: 240deg;"
+                >
                     <div class="scene-card__content">
                         <div class="scene-card__tags">
                             <span class="tag">Space</span>
@@ -87,6 +63,126 @@
                         <div class="scene-card__actions">
                             <button class="scene-action" data-scene="planet" data-action="launch" type="button">Launch</button>
                             <button class="scene-action" data-scene="planet" data-action="orbit" type="button">Orbit</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div
+                    class="scene-card"
+                    data-scene="color-trees"
+                    style="--scene-bg: url('https://glb.keithhe.com/ar/spz/pic/color-trees.png'); --hue: 35deg;"
+                >
+                    <div class="scene-card__content">
+                        <div class="scene-card__tags">
+                            <span class="tag">Nature</span>
+                            <span class="tag">Color</span>
+                            <span class="tag">Chill</span>
+                        </div>
+                        <div class="scene-card__title">Color Trees</div>
+                        <div class="scene-card__desc">A vibrant forest palette. Great for quick portal demos and color pop.</div>
+                        <div class="scene-card__actions">
+                            <button class="scene-action" data-scene="color-trees" data-action="wander" type="button">Wander</button>
+                            <button class="scene-action" data-scene="color-trees" data-action="capture" type="button">Capture</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div
+                    class="scene-card"
+                    data-scene="game-snow"
+                    style="--scene-bg: url('https://glb.keithhe.com/ar/spz/pic/game-snow.png'); --hue: 200deg;"
+                >
+                    <div class="scene-card__content">
+                        <div class="scene-card__tags">
+                            <span class="tag">Game</span>
+                            <span class="tag">Snow</span>
+                            <span class="tag">Cozy</span>
+                        </div>
+                        <div class="scene-card__title">Game Snow</div>
+                        <div class="scene-card__desc">A playful snowy scene. Soft lighting and high contrast silhouettes.</div>
+                        <div class="scene-card__actions">
+                            <button class="scene-action" data-scene="game-snow" data-action="play" type="button">Play</button>
+                            <button class="scene-action" data-scene="game-snow" data-action="snowball" type="button">Snowball</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div
+                    class="scene-card"
+                    data-scene="sci-fi-pryamid"
+                    style="--scene-bg: url('https://glb.keithhe.com/ar/spz/pic/sci-fi-pryamid.png'); --hue: 280deg;"
+                >
+                    <div class="scene-card__content">
+                        <div class="scene-card__tags">
+                            <span class="tag">Sci‑Fi</span>
+                            <span class="tag">Neon</span>
+                            <span class="tag">Mystery</span>
+                        </div>
+                        <div class="scene-card__title">Sci‑Fi Pryamid</div>
+                        <div class="scene-card__desc">A futuristic pyramid with sharp lines. Best for dramatic portal reveals.</div>
+                        <div class="scene-card__actions">
+                            <button class="scene-action" data-scene="sci-fi-pryamid" data-action="scan" type="button">Scan</button>
+                            <button class="scene-action" data-scene="sci-fi-pryamid" data-action="enter" type="button">Enter</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div
+                    class="scene-card"
+                    data-scene="throne"
+                    style="--scene-bg: url('https://glb.keithhe.com/ar/spz/pic/throne.png'); --hue: 20deg;"
+                >
+                    <div class="scene-card__content">
+                        <div class="scene-card__tags">
+                            <span class="tag">Royal</span>
+                            <span class="tag">Gold</span>
+                            <span class="tag">Room</span>
+                        </div>
+                        <div class="scene-card__title">Throne</div>
+                        <div class="scene-card__desc">A grand throne room vibe. Strong symmetry and focal point.</div>
+                        <div class="scene-card__actions">
+                            <button class="scene-action" data-scene="throne" data-action="kneel" type="button">Kneel</button>
+                            <button class="scene-action" data-scene="throne" data-action="claim" type="button">Claim</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div
+                    class="scene-card"
+                    data-scene="wedding"
+                    style="--scene-bg: url('https://glb.keithhe.com/ar/spz/pic/wedding.png'); --hue: 330deg;"
+                >
+                    <div class="scene-card__content">
+                        <div class="scene-card__tags">
+                            <span class="tag">Love</span>
+                            <span class="tag">Soft</span>
+                            <span class="tag">White</span>
+                        </div>
+                        <div class="scene-card__title">Wedding</div>
+                        <div class="scene-card__desc">A bright, elegant scene. Best with a clean, well-lit room.</div>
+                        <div class="scene-card__actions">
+                            <button class="scene-action" data-scene="wedding" data-action="vow" type="button">Vow</button>
+                            <button class="scene-action" data-scene="wedding" data-action="ring" type="button">Ring</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div
+                    class="scene-card"
+                    data-scene="xmas_tree"
+                    style="--scene-bg: url('https://glb.keithhe.com/ar/spz/pic/xmas_tree.png'); --hue: 120deg;"
+                >
+                    <div class="scene-card__content">
+                        <div class="scene-card__tags">
+                            <span class="tag">Holiday</span>
+                            <span class="tag">Tree</span>
+                            <span class="tag">Festive</span>
+                        </div>
+                        <div class="scene-card__title">Xmas Tree</div>
+                        <div class="scene-card__desc">A festive scene. Great for seasonal demos and cozy ambience.</div>
+                        <div class="scene-card__actions">
+                            <button class="scene-action" data-scene="xmas_tree" data-action="decorate" type="button">Decorate</button>
+                            <button class="scene-action" data-scene="xmas_tree" data-action="lights" type="button">Lights</button>
                         </div>
                     </div>
                 </div>
@@ -117,10 +213,14 @@
              <!-- Scene selector available in AR too for switching -->
              <div id="ui-container">
                 <select id="scene-selector">
-                    <option value="store">Store</option>
-                    <option value="hall">Cthulhu Hall</option>
-                    <option value="town">Ancient Town</option>
+                    <option value="cthulhu_hall">Cthulhu Hall</option>
                     <option value="planet">Planet</option>
+                    <option value="color-trees">Color Trees</option>
+                    <option value="game-snow">Game Snow</option>
+                    <option value="sci-fi-pryamid">Sci‑Fi Pryamid</option>
+                    <option value="throne">Throne</option>
+                    <option value="wedding">Wedding</option>
+                    <option value="xmas_tree">Xmas Tree</option>
                 </select>
             </div>
         </div>

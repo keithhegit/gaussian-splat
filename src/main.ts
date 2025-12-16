@@ -95,7 +95,7 @@ style.textContent = `
         content: "";
         position: absolute;
         inset: 0;
-        background-image: url("https://pub-c98d5902eedf42f6a9765dfad981fd88.r2.dev/Icon/loading/ugn_load_page.png");
+        background-image: var(--scene-bg, url("https://pub-c98d5902eedf42f6a9765dfad981fd88.r2.dev/Icon/loading/ugn_load_page.png"));
         background-size: cover;
         background-position: center;
         transform: scale(1.08);

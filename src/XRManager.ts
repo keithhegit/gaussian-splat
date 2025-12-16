@@ -19,12 +19,15 @@ export class XRManager {
     //     typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
 
     // Config for scenes
-    private readonly SCENES = {
-        store: 'https://glb.keithhe.com/ar/door/store-hywbtsc9s9.spz',
-        // NOTE: correct spelling; `cathulu_hall.spz` is 404.
-        hall: 'https://glb.keithhe.com/ar/spz/cthulhu_hall.spz',
-        town: 'https://glb.keithhe.com/ar/spz/ancient_town.spz',
-        planet: 'https://glb.keithhe.com/ar/spz/planet.spz'
+    private readonly SCENES: Record<string, string> = {
+        cthulhu_hall: 'https://glb.keithhe.com/ar/spz/cthulhu_hall.spz',
+        planet: 'https://glb.keithhe.com/ar/spz/planet.spz',
+        'color-trees': 'https://glb.keithhe.com/ar/spz/color-trees.spz',
+        'game-snow': 'https://glb.keithhe.com/ar/spz/game-snow.spz',
+        'sci-fi-pryamid': 'https://glb.keithhe.com/ar/spz/sci-fi-pryamid.spz',
+        throne: 'https://glb.keithhe.com/ar/spz/throne.spz',
+        wedding: 'https://glb.keithhe.com/ar/spz/wedding.spz',
+        xmas_tree: 'https://glb.keithhe.com/ar/spz/xmas_tree.spz',
     };
 
     constructor() {

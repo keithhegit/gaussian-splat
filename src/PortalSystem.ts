@@ -19,6 +19,8 @@ export class PortalSystem {
     private readonly debugPortalEnabled: boolean =
         typeof window !== 'undefined' &&
         new URLSearchParams(window.location.search).get('debugPortal') === '1';
+    private readonly urlParams: URLSearchParams | null =
+        typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
 
     // Baseline mode (Option 1):
     // - Prioritize "always visible" splat like 88afca3
@@ -38,6 +40,9 @@ export class PortalSystem {
     // Door GLB alignment note: the frame appears aligned toward bottom-left.
     // We keep the portal pivot stable (center-bottom), but align the *content* to the bottom-left edge.
     private readonly portalAnchor: 'centerBottom' | 'bottomLeft' = 'bottomLeft';
+    // Shrink the portal OPENING (mask) relative to current baseline so it fits inside the frame.
+    // Default is 0.7 (user measured), but can be overridden via URL: `?openingScale=0.7`
+    private readonly portalOpeningScaleDefault = 0.7;
     // Match 88a38b7 convention:
     // - Outside (in front of portal): cameraLocal.z > +threshold
     // - Inside  (behind portal):      cameraLocal.z < -threshold
@@ -52,9 +57,11 @@ export class PortalSystem {
         // NOTE: This requires the renderer to be created with `{ stencil: true }`.
         const openingWidth = this.getPortalOpeningWidth();
         const openingHeight = this.getPortalOpeningHeight();
+        const openingOffsetX = this.getPortalOpeningOffsetX();
         const maskGeo = new THREE.PlaneGeometry(openingWidth, openingHeight);
         // Bottom at y=0, centered in X (pivot remains center-bottom)
-        maskGeo.translate(0, openingHeight / 2, 0);
+        // If door is bottom-left aligned, shift opening in +X so left edge stays anchored while shrinking.
+        maskGeo.translate(openingOffsetX, openingHeight / 2, 0);
         const maskMat = new THREE.MeshBasicMaterial({
             color: 0x000000,
             colorWrite: false,
@@ -301,11 +308,27 @@ export class PortalSystem {
     }
     
     private getPortalOpeningWidth() {
-        return this.portalOpeningWidth;
+        const raw = this.urlParams?.get('openingScale');
+        const scale = raw ? Number(raw) : this.portalOpeningScaleDefault;
+        const safeScale = Number.isFinite(scale) ? THREE.MathUtils.clamp(scale, 0.2, 1.2) : 1.0;
+        return this.portalOpeningWidth * safeScale;
     }
 
     private getPortalOpeningHeight() {
-        return this.portalOpeningHeight;
+        const raw = this.urlParams?.get('openingScale');
+        const scale = raw ? Number(raw) : this.portalOpeningScaleDefault;
+        const safeScale = Number.isFinite(scale) ? THREE.MathUtils.clamp(scale, 0.2, 1.2) : 1.0;
+        return this.portalOpeningHeight * safeScale;
+    }
+
+    private getPortalOpeningOffsetX() {
+        if (this.portalAnchor !== 'bottomLeft') return 0;
+        const raw = this.urlParams?.get('openingScale');
+        const scale = raw ? Number(raw) : this.portalOpeningScaleDefault;
+        const safeScale = Number.isFinite(scale) ? THREE.MathUtils.clamp(scale, 0.2, 1.2) : 1.0;
+        const scaledWidth = this.portalOpeningWidth * safeScale;
+        // Keep original left edge fixed while shrinking => center shifts right by half the width delta.
+        return (this.portalOpeningWidth - scaledWidth) / 2;
     }
 
     private fitSplatToPortal(viewer: THREE.Object3D, splatRoot: THREE.Object3D) {
@@ -324,7 +347,12 @@ export class PortalSystem {
         const size = new THREE.Vector3();
         bounds.getSize(size);
 
-        if (!Number.isFinite(size.x) || !Number.isFinite(size.y) || size.x <= 0 || size.y <= 0) return;
+        if (!Number.isFinite(size.x) || !Number.isFinite(size.y) || size.x <= 0 || size.y <= 0) {
+            if (this.debugPortalEnabled) {
+                console.log('[PortalDebug][fit-skip]', { size: { x: size.x, y: size.y, z: size.z } });
+            }
+            return;
+        }
 
         const openingWidth = this.getPortalOpeningWidth();
         const openingHeight = this.getPortalOpeningHeight();
@@ -353,7 +381,7 @@ export class PortalSystem {
         if (this.portalAnchor === 'bottomLeft') {
             // Keep the *left edge* aligned to the opening's left edge, and bottom to y=0.
             // Opening left edge is at x = -openingWidth/2 (pivot is center-bottom).
-            const openingLeftX = -openingWidth / 2;
+            const openingLeftX = this.getPortalOpeningOffsetX() - openingWidth / 2;
             const contentLeftX = bounds.min.x;
             splatRoot.position.x = openingLeftX - contentLeftX * clampedScale;
         } else {
@@ -406,6 +434,7 @@ export class PortalSystem {
                 h: this.getPortalOpeningHeight(),
                 padding: this.portalFitPadding,
                 anchor: this.portalAnchor,
+                offsetX: this.getPortalOpeningOffsetX(),
             },
             viewer: viewer
                 ? {
